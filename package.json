@@ -1,0 +1,27 @@
+{
+  "name": "ghshell",
+  "version": "1.0.0",
+  "description": "Automatic corrections and executions of GitHub's repositories",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA.git"
+  },
+  "keywords": [
+    "shell",
+    "github",
+    "console",
+    "cli",
+    "evaluation",
+    "correction"
+  ],
+  "author": "Juan José Labrador González",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA/issues"
+  },
+  "homepage": "https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA#readme"
+}
