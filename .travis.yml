@@ -4,7 +4,8 @@ node_js:
   - "6"
   - "7"
 
-install: true
+install:
+  - npm install
 
 script:
   - npm test
