@@ -2,7 +2,6 @@
   "name": "ghshell",
   "version": "1.0.0",
   "description": "Automatic corrections and executions of GitHub's repositories",
-  "main": "index.js",
   "scripts": {
     "test": "mocha"
   },
@@ -12,6 +11,7 @@
   },
   "keywords": [
     "shell",
+    "terminal",
     "github",
     "console",
     "cli",
@@ -28,7 +28,11 @@
     "chai": "3.5.0",
     "mocha": "3.2.0"
   },
+  "dependencies": {},
   "engines": {
     "node": "6.10.1"
+  },
+  "bin": {
+    "ghshell": "index.js"
   }
 }
