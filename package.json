@@ -1,7 +1,7 @@
 {
   "name": "ghshell",
   "version": "1.0.0",
-  "description": "Automatic corrections and executions of GitHub's repositories",
+  "description": "CLI tool for automatic corrections and executions of GitHub's repositories",
   "scripts": {
     "test": "mocha"
   },
@@ -29,11 +29,18 @@
     "mocha": "3.2.0"
   },
   "dependencies": {
-    "colors": "^1.1.2",
-    "github": "9.2.0"
+    "clear": "0.0.1",
+    "clui": "0.3.1",
+    "colors": "1.1.2",
+    "figlet": "1.2.0",
+    "github": "9.2.0",
+    "inquirer": "3.0.6",
+    "lodash": "4.17.4",
+    "preferences": "0.2.1",
+    "readline-sync": "^1.4.7"
   },
   "engines": {
-    "node": "6.10.1"
+    "node": "6.10.2"
   },
   "bin": {
     "ghshell": "index.js"

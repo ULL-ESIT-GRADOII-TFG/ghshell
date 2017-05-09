@@ -1,84 +1,134 @@
 #! /usr/bin/env node
 
-const readline = require('readline');
-var colors = require('colors');
-var GitHubApi = require('github');
+var colors      = require('colors');
+var clear       = require('clear');
+var CLI         = require('clui');
+var Spinner     = CLI.Spinner;
+var figlet      = require('figlet');
+var inquirer    = require('inquirer');
+var Preferences = require('preferences');
+var GitHubApi   = require('github');
+var _           = require('lodash');
+var fs          = require('fs');
+var files       = require('./lib/files');
+
 
 var github = new GitHubApi({
     debug: false,
     protocol: "https",
     host: "api.github.com",
-    /*headers: {
-        "user-agent": "My-Cool-GitHub-App" // GitHub is happy with a unique user agent
-    },*/
     followRedirects: false, // default: true; there's currently an issue with non-get redirects, so allow ability to disable follow-redirects
     timeout: 5000
 });
 
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    completer,
-    prompt: 'ghshell > '.cyan
-});
-
-
-function intro() {
-    console.log('----------------------------');
-    console.log('|          GHSHELL         |');
-    console.log('----------------------------');
-    console.log('');
-}
-
-function completer(line) {
-    var completions = 'help list exit repos orgs'.split(' ');
-    var hits = completions.filter(function(c) {
-        if (c.indexOf(line) === 0) {
-            return c;
+/****************************************************************/
+function getGithubCredentials(callback) {
+    var questions = [
+        {
+            name: 'username',
+            type: 'input',
+            message: 'Enter your Github username or e-mail address:',
+            validate: function( value ) {
+                if (value.length) {
+                    return true;
+                } else {
+                    return 'Enter your Github username or e-mail address';
+                }
+            }
+        },
+        {
+            name: 'password',
+            type: 'password',
+            message: 'Enter your password:',
+            validate: function(value) {
+                if (value.length) {
+                    return true;
+                } else {
+                    return 'Enter your password';
+                }
+            }
         }
-    });
-    return [hits && hits.length ? hits : completions, line];
+    ];
+
+    inquirer.prompt(questions).then(callback);
 }
 
-function listOrgs(obj) {
-    console.log('');
-    for(var i = 0; i < obj.data.length; i++)
-        rl.output.write(obj.data[i].login + '   ');
-    rl.write(null, {name: 'enter'});
-}
+function getGithubToken(callback) {
+    var prefs = new Preferences('ghshell');
 
-intro();
-
-github.authenticate({
-    type: "basic",
-    username: "user",
-    password: "password"
-});
-
-rl.prompt();
-
-rl.on('line', function (line) {
-    switch(line.trim()) {
-        case 'help':
-            console.log('Show help');
-            break;
-        case 'list':
-            console.log('Show list');
-            break;
-        case 'orgs':
-            github.users.getOrgs({}, function (error, result) {
-                listOrgs(result);
-            });
-            break;
-        case 'exit':
-            process.exit(0);
-        default:
-            //console.log(`'${line.trim()}'`);
-            //console.log('Show help');
-            break;
+    if (prefs.github && prefs.github.token) {
+        return callback(null, prefs.github.token);
     }
-    rl.prompt();
-}).on('close', function() {
-    console.log('');
-    process.exit(0);
+
+    // Fetch token
+    getGithubCredentials(function(credentials) {
+        var status = new Spinner('Authenticating...');
+        status.start();
+
+        github.authenticate(
+            _.extend(
+                {
+                    type: 'basic',
+                },
+                credentials
+            )
+        );
+
+        github.authorization.create({
+            scopes: ['public_repo', 'read:org', 'read:user'],
+            note: 'ghshell, the CLI tool for automatic corrections and executions of GitHub\'s repositories'
+        }, function(err, res) {
+            status.stop();
+            if ( err ) {
+                return callback( err );
+            }
+            if (res.data.token) {
+                prefs.github = {
+                    token : res.data.token
+                };
+                return callback(null, res.data.token);
+            }
+            return callback();
+        });
+    });
+}
+
+function githubAuth(callback) {
+    getGithubToken(function(err, token) {
+        if (err) {
+            return callback(err);
+        }
+        github.authenticate({
+            type : 'oauth',
+            token : token
+        });
+        return callback(null, token);
+    });
+}
+
+/****************************************************************/
+
+clear();
+console.log(
+    figlet.textSync('ghshell', { horizontalLayout: 'full'}).yellow
+);
+console.log('');
+
+//files.checkGitRepository();
+
+githubAuth(function(err, authed) {
+    if (err) {
+        switch (err.code) {
+            case 401:
+                console.log('Couldn\'t log you in. Try again.'.red);
+                break;
+            case 422:
+                console.log('You already have an access token.'.red);
+                break;
+        }
+    }
+    if (authed) {
+        console.log('Sucessfully authenticated!'.green);
+        console.log('');
+    }
 });
