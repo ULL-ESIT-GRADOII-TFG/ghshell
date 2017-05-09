@@ -77,7 +77,7 @@ intro();
 
 /*github.authenticate({
  type: "token",
- token: "cceb9068c5266ad76ed926d06ce961b41486ca7f",
+ token: "<token>",
  });*/
 
 rl.prompt();
