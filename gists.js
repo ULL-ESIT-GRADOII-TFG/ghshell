@@ -266,3 +266,5 @@ cli.on('close', function () {
     console.log('History:' + cli.history());
     process.exit();
 });
+
+//files.checkGitRepository();
