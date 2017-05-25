@@ -12,7 +12,7 @@ var _           = require('lodash');
 var fs          = require('fs');
 var files       = require('./lib/files');
 var Promise     = require("bluebird");
-var readlineSync = require('readline-sync');
+const readline = require('readline');
 
 var github = new GitHubApi({
     debug: false,
@@ -24,46 +24,36 @@ var github = new GitHubApi({
 });
 
 /****************************************************************/
-function getGithubCredentials(callback) {
-    /*var questions = [
-        {
-            name: 'username',
-            type: 'input',
-            message: 'Enter your Github username or e-mail address:',
-            validate: function( value ) {
-                if (value.length) {
-                    return true;
-                } else {
-                    return 'Enter your Github username or e-mail address';
-                }
-            }
-        },
-        {
-            name: 'password',
-            type: 'password',
-            message: 'Enter your password:',
-            validate: function(value) {
-                if (value.length) {
-                    return true;
-                } else {
-                    return 'Enter your password';
-                }
-            }
+
+function hidden(query, callback) {
+    var stdin = process.openStdin();
+    var onDataHandler = function(char) {
+        char = char + "";
+        switch (char) {
+            case "\n": case "\r": case "\u0004":
+            // Remove this handler
+            stdin.removeListener("data",onDataHandler);
+            break;//stdin.pause(); break;
+            default:
+                process.stdout.write("\033[2K\033[200D" + query + Array(rl.line.length+1).join("*"));
+                break;
         }
-    ];
+    }
+    process.stdin.on("data", onDataHandler);
 
-    inquirer.prompt(questions).then(callback);*/
-    /*var user = readlineSync.question('User: ');
-    var pass = readlineSync.question('Password: ', {
-        hideEchoBack: true
-    });*/
-
-    var user = readlineSync.question('User: ');
-    var pass = readlineSync.question('Password: ', {
-        hideEchoBack: true
+    rl.question(query, function(value) {
+        rl.history = rl.history.slice(1);
+        callback(value);
     });
+}
 
-    callback({username: user, password: pass});
+function getGithubCredentials(callback) {
+
+    rl.question('User: ', (user) => {
+        hidden("Password: ", (pass) => {
+            callback({username: user, password: pass});
+        });
+    });
 }
 
 function getGithubToken(callback) {
@@ -106,7 +96,6 @@ function getGithubToken(callback) {
     });
 }
 
-var tkn = '';
 
 function githubAuth(callback) {
     getGithubToken(function(err, token) {
@@ -136,7 +125,6 @@ function login() {
         if (authed) {
             console.log('Sucessfully authenticated!'.green);
             console.log('');
-            tkn = authed;
         }
     });
 }
@@ -150,15 +138,60 @@ console.log(
 console.log('');
 
 
-readlineSync.setDefaultOptions({
+
+
+function completer(line) {
+    var completions = 'exit help list login orgs repos'.split(' ');
+    var hits = completions.filter(function(c) {
+        if (c.indexOf(line) === 0) {
+            return c;
+        }
+    });
+    return [hits && hits.length ? hits : completions, line];
+}
+
+function listOrgs(obj) {
+    console.log('');
+    for(var i = 0; i < obj.data.length; i++)
+        rl.output.write(obj.data[i].login + '   ');
+    rl.write(null, {name: 'enter'});
+}
+
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    completer,
     prompt: 'ghshell > '.cyan
 });
 
-readlineSync.promptCLLoop({
-    login: function () {
-        login();
-        return true;
-    },
-    exit: function() { return true; }
+rl.prompt();
+
+rl.on('line', function (line) {
+    switch(line.trim()) {
+        case 'help':
+            console.log('Show help');
+            break;
+        case 'login':
+            console.log('Enter your GitHub credentials.');
+            login();
+            break;
+        case 'list':
+            console.log('Show list');
+            break;
+        case 'orgs':
+            github.users.getOrgs({}, function (error, result) {
+                listOrgs(result);
+            });
+            break;
+        case 'exit':
+            process.exit(0);
+        default:
+            //console.log(`'${line.trim()}'`);
+            //console.log('Show help');
+            break;
+    }
+    rl.prompt();
+}).on('close', function() {
+    console.log('');
+    process.exit(0);
 });
-console.log('Exited');
