@@ -6,13 +6,27 @@ var CLI         = require('clui');
 var Spinner     = CLI.Spinner;
 var figlet      = require('figlet');
 var inquirer    = require('inquirer');
-var Preferences = require('preferences');
+var UserSettings = require('user-settings');
 var GitHubApi   = require('github');
 var _           = require('lodash');
 var fs          = require('fs');
 var files       = require('./lib/files');
 var Promise     = require("bluebird");
 const readline = require('readline');
+const crypto = require('crypto');
+var path = require('path')
+
+var homedir = process.env.HOME || process.env.USERPROFILE;
+var seed = (function () {
+    var key = path.join(homedir, '.ssh', 'id_rsa.pub')
+    try {
+        // Use private SSH key or...
+        return fs.readFileSync(key).toString('utf8')
+    } catch (e) {
+        // ...fallback to an id dependant password
+        return crypto.randomBytes(256).toString('hex');
+    }
+})();
 
 var github = new GitHubApi({
     debug: false,
@@ -57,10 +71,10 @@ function getGithubCredentials(callback) {
 }
 
 function getGithubToken(callback) {
-    var prefs = new Preferences('ghshell');
+    var prefs = UserSettings.file('.ghshell');
 
-    if (prefs.github && prefs.github.token) {
-        return callback(null, prefs.github.token);
+    if (prefs.get('token')) {
+        return callback(null, JSON.parse(decode(prefs.get('token'))));
     }
 
     // Fetch token
@@ -86,9 +100,7 @@ function getGithubToken(callback) {
                 return callback( err );
             }
             if (res.data.token) {
-                prefs.github = {
-                    token : res.data.token
-                };
+                prefs.set('token', encode(String(JSON.stringify(res.data.token))))
                 return callback(null, res.data.token);
             }
             return callback();
@@ -124,9 +136,20 @@ function login() {
         }
         if (authed) {
             console.log('Sucessfully authenticated!'.green);
-            console.log('');
         }
+        //console.log('');
+        rl.write(null, {name: 'enter'});
     });
+}
+
+function encode (text) {
+    var cipher = crypto.createCipher('aes128', seed)
+    return cipher.update(new Buffer(text).toString('utf8'), 'utf8', 'hex') + cipher.final('hex')
+}
+
+function decode (text) {
+    var decipher = crypto.createDecipher('aes128', seed)
+    return decipher.update(String(text), 'hex', 'utf8') + decipher.final('utf8')
 }
 
 /****************************************************************/

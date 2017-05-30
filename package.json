@@ -37,8 +37,8 @@
     "github": "9.2.0",
     "inquirer": "3.0.6",
     "lodash": "4.17.4",
-    "preferences": "0.2.1",
-    "readline-sync": "^1.4.7"
+    "readline-sync": "^1.4.7",
+    "user-settings": "^0.1.5"
   },
   "engines": {
     "node": "7.10.0"
