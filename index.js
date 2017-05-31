@@ -109,6 +109,10 @@ function getGithubToken(callback) {
             }
             if (res.data.token) {
                 prefs.set('token', encode(String(JSON.stringify(res.data.token))));
+                prefs.set('id', encode(String(JSON.stringify(res.data.id))));
+                prefs.set('client_id', encode(String(JSON.stringify(res.data.app.client_id))));
+                prefs.set('username', encode(credentials.username));
+                prefs.set('password', encode(credentials.password));
                 return callback(null, res.data.token);
             }
             return callback();
@@ -123,8 +127,9 @@ function githubAuth(callback) {
             return callback(err);
         }
         github.authenticate({
-            type : 'oauth',
-            token : token
+            type : 'basic',
+            username : decode(prefs.get('username')),
+            password : decode(prefs.get('password'))
         });
         return callback(null, token);
     });
@@ -154,15 +159,24 @@ function login() {
     });
 }
 
+function clearCredentials() {
+    prefs.unset('token');
+    prefs.unset('id');
+    prefs.unset('client_id');
+    prefs.unset('username');
+    prefs.unset('password');
+}
+
 function logout() {
 
-    var a = decode(prefs.get('token'));
-    console.log(a);
-   /* github.authorization.revoke({
-        access_token: decode(prefs.get('token'))
-    }).then(function (res) {
-        console.log("hola: ", res);
-    });*/
+    console.log('Local credentials cleared'.yellow);
+    console.log('');
+
+    github.authorization.delete({
+        id: JSON.parse(decode(prefs.get('id')))
+    }).then(function () {
+        clearCredentials();
+    });
 }
 
 function encode (text) {
@@ -176,7 +190,7 @@ function decode (text) {
 }
 
 function completer(line) {
-    var completions = 'exit help list login orgs repos'.split(' ');
+    var completions = 'exit help list login logout orgs repos'.split(' ');
     var hits = completions.filter(function(c) {
         if (c.indexOf(line) === 0) {
             return c;
