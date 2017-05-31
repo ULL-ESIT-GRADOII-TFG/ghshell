@@ -17,18 +17,18 @@ const path       = require('path');
 
 var prefs = UserSettings.file('.ghshell');
 var homedir = process.env.HOME || process.env.USERPROFILE;
-var seed = (function () {
-    var key = path.join(homedir, '.ssh', 'id_rsa');
+var seed = (() => {
+    let key = path.join(homedir, '.ssh', 'id_rsa');
     try {
-        // Use private SSH key as seed
-        return fs.readFileSync(key).toString('utf8')
+        return fs.readFileSync(key).toString('utf8')    // Use private SSH key as seed
     } catch (e) {
-        // or random string
-        return crypto.randomBytes(256).toString('hex');
+        return crypto.randomBytes(256).toString('hex'); // or random string
     }
 })();
 
-var github = new GitHubApi({
+var dictionary = 'exit help list login logout orgs repos';
+
+const github = new GitHubApi({
     debug: false,
     protocol: "https",
     host: "api.github.com",
@@ -47,22 +47,21 @@ const rl = readline.createInterface({
 /****************************************************************/
 
 function hiddenPassword(query, callback) {
-    var stdin = process.openStdin();
-    var onDataHandler = function(char) {
+    let stdin = process.openStdin();
+    let onDataHandler = (char) => {
         char = char + "";
         switch (char) {
             case "\n": case "\r": case "\u0004":
-            // Remove this handler
-            stdin.removeListener("data",onDataHandler);
-            break;//stdin.pause(); break;
+                stdin.removeListener("data",onDataHandler);   // Remove this handler
+                break;
             default:
-                process.stdout.write("\033[2K\033[200D" + query + Array(rl.line.length+1).join("*"));
+                process.stdout.write("\033[2K\033[200D" + query + Array(rl.line.length + 1).join("*"));
                 break;
         }
-    }
+    };
     process.stdin.on("data", onDataHandler);
 
-    rl.question(query, function(value) {
+    rl.question(query, (value) => {
         rl.history = rl.history.slice(1);
         callback(value);
     });
@@ -88,31 +87,29 @@ function getGithubToken(callback) {
     // Fetch token
     getGithubCredentials(function(credentials) {
 
-        var status = new Spinner('Authenticating...');
+        let status = new Spinner('Authenticating...');
         status.start();
 
-        github.authenticate(
-            {
-                type: 'basic',
-                username: credentials.username,
-                password: credentials.password
-            }
-        );
+        github.authenticate({
+            type     : 'basic',
+            username : credentials.username,
+            password : credentials.password
+        });
 
         github.authorization.create({
             scopes: ['public_repo', 'read:org', 'read:user'],
             note: 'ghshell, the CLI tool for automatic corrections and executions of GitHub\'s repositories'
-        }, function(err, res) {
+        }, (err, res) => {
             status.stop();
-            if ( err ) {
-                return callback( err );
+            if (err) {
+                return callback(err);
             }
             if (res.data.token) {
-                prefs.set('token', encode(String(JSON.stringify(res.data.token))));
-                prefs.set('id', encode(String(JSON.stringify(res.data.id))));
+                prefs.set('token',     encode(String(JSON.stringify(res.data.token))));
+                prefs.set('id',        encode(String(JSON.stringify(res.data.id))));
                 prefs.set('client_id', encode(String(JSON.stringify(res.data.app.client_id))));
-                prefs.set('username', encode(credentials.username));
-                prefs.set('password', encode(credentials.password));
+                prefs.set('username',  encode(credentials.username));
+                prefs.set('password',  encode(credentials.password));
                 return callback(null, res.data.token);
             }
             return callback();
@@ -122,12 +119,12 @@ function getGithubToken(callback) {
 
 
 function githubAuth(callback) {
-    getGithubToken(function(err, token) {
+    getGithubToken((err, token) => {
         if (err) {
             return callback(err);
         }
         github.authenticate({
-            type : 'basic',
+            type     : 'basic',
             username : decode(prefs.get('username')),
             password : decode(prefs.get('password'))
         });
@@ -136,7 +133,7 @@ function githubAuth(callback) {
 }
 
 function login() {
-    githubAuth(function(err, authed) {
+    githubAuth((err, authed) => {
         if (err) {
             switch (err.code) {
                 case 401:
@@ -174,24 +171,24 @@ function logout() {
 
     github.authorization.delete({
         id: JSON.parse(decode(prefs.get('id')))
-    }).then(function () {
+    }).then(() => {
         clearCredentials();
     });
 }
 
 function encode (text) {
-    var cipher = crypto.createCipher('aes128', seed)
+    let cipher = crypto.createCipher('aes128', seed);
     return cipher.update(new Buffer(text).toString('utf8'), 'utf8', 'hex') + cipher.final('hex')
 }
 
 function decode (text) {
-    var decipher = crypto.createDecipher('aes128', seed)
+    let decipher = crypto.createDecipher('aes128', seed);
     return decipher.update(String(text), 'hex', 'utf8') + decipher.final('utf8')
 }
 
 function completer(line) {
-    var completions = 'exit help list login logout orgs repos'.split(' ');
-    var hits = completions.filter(function(c) {
+    let completions = dictionary.split(' ');
+    let hits = completions.filter((c) => {
         if (c.indexOf(line) === 0) {
             return c;
         }
@@ -200,7 +197,7 @@ function completer(line) {
 }
 
 function listOrgs(obj) {
-    for(var i = 0; i < obj.data.length; i++)
+    for(let i = 0; i < obj.data.length; i++)
         rl.output.write(obj.data[i].login + '   ');
     console.log('');
     rl.write(null, {name: 'enter'});
@@ -215,7 +212,7 @@ console.log('');
 
 rl.prompt();
 
-rl.on('line', async function (line) {
+rl.on('line', async (line) => {
     switch(line.trim()) {
         case 'help':
             console.log('Show help');
@@ -230,19 +227,18 @@ rl.on('line', async function (line) {
             console.log('Show list');
             break;
         case 'orgs':
-            await github.users.getOrgs({}).then(function (result) {
+            await github.users.getOrgs({}).then((result) => {
                 listOrgs(result);
             });
             break;
         case 'exit':
             process.exit(0);
-        default:
-            //console.log(`'${line.trim()}'`);
+        //default:
             //console.log('Show help');
-            break;
+            //break;
     }
     rl.prompt();
-}).on('close', function() {
+}).on('close', () => {
     console.log('');
     process.exit(0);
 });

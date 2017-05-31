@@ -29,13 +29,13 @@
     "mocha": "3.2.0"
   },
   "dependencies": {
-    "bluebird": "^3.5.0",
+    "bluebird": "3.5.0",
     "clear": "0.0.1",
     "clui": "0.3.1",
     "colors": "1.1.2",
     "figlet": "1.2.0",
     "github": "9.2.0",
-    "user-settings": "^0.1.5"
+    "user-settings": "0.1.5"
   },
   "engines": {
     "node": "7.10.0"
