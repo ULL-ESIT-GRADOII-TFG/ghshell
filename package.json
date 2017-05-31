@@ -35,9 +35,6 @@
     "colors": "1.1.2",
     "figlet": "1.2.0",
     "github": "9.2.0",
-    "inquirer": "3.0.6",
-    "lodash": "4.17.4",
-    "readline-sync": "^1.4.7",
     "user-settings": "^0.1.5"
   },
   "engines": {

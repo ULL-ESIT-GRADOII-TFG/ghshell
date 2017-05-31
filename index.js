@@ -1,29 +1,29 @@
 #! /usr/bin/env node
 
-var colors      = require('colors');
-var clear       = require('clear');
-var CLI         = require('clui');
-var Spinner     = CLI.Spinner;
-var figlet      = require('figlet');
-var inquirer    = require('inquirer');
+var colors       = require('colors');
+var clear        = require('clear');
+var CLI          = require('clui');
+var Spinner      = CLI.Spinner;
+var figlet       = require('figlet');
 var UserSettings = require('user-settings');
-var GitHubApi   = require('github');
-var _           = require('lodash');
-var fs          = require('fs');
-var files       = require('./lib/files');
-var Promise     = require("bluebird");
-const readline = require('readline');
-const crypto = require('crypto');
-var path = require('path')
+var GitHubApi    = require('github');
+var Promise      = require('bluebird');
 
+const fs         = require('fs');
+const files      = require('./lib/files');
+const readline   = require('readline');
+const crypto     = require('crypto');
+const path       = require('path');
+
+var prefs = UserSettings.file('.ghshell');
 var homedir = process.env.HOME || process.env.USERPROFILE;
 var seed = (function () {
-    var key = path.join(homedir, '.ssh', 'id_rsa.pub')
+    var key = path.join(homedir, '.ssh', 'id_rsa');
     try {
-        // Use private SSH key or...
+        // Use private SSH key as seed
         return fs.readFileSync(key).toString('utf8')
     } catch (e) {
-        // ...fallback to an id dependant password
+        // or random string
         return crypto.randomBytes(256).toString('hex');
     }
 })();
@@ -37,9 +37,16 @@ var github = new GitHubApi({
     Promise: Promise
 });
 
+const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    completer,
+    prompt: 'ghshell > '.cyan
+});
+
 /****************************************************************/
 
-function hidden(query, callback) {
+function hiddenPassword(query, callback) {
     var stdin = process.openStdin();
     var onDataHandler = function(char) {
         char = char + "";
@@ -63,15 +70,16 @@ function hidden(query, callback) {
 
 function getGithubCredentials(callback) {
 
-    rl.question('User: ', (user) => {
-        hidden("Password: ", (pass) => {
+    console.log('Enter your GitHub credentials:');
+
+    rl.question('User: '.grey, (user) => {
+        hiddenPassword('Password: '.grey, (pass) => {
             callback({username: user, password: pass});
         });
     });
 }
 
 function getGithubToken(callback) {
-    var prefs = UserSettings.file('.ghshell');
 
     if (prefs.get('token')) {
         return callback(null, JSON.parse(decode(prefs.get('token'))));
@@ -84,13 +92,13 @@ function getGithubToken(callback) {
         status.start();
 
         github.authenticate(
-            _.extend(
-                {
-                    type: 'basic',
-                },
-                credentials
-            )
-        )
+            {
+                type: 'basic',
+                username: credentials.username,
+                password: credentials.password
+            }
+        );
+
         github.authorization.create({
             scopes: ['public_repo', 'read:org', 'read:user'],
             note: 'ghshell, the CLI tool for automatic corrections and executions of GitHub\'s repositories'
@@ -100,7 +108,7 @@ function getGithubToken(callback) {
                 return callback( err );
             }
             if (res.data.token) {
-                prefs.set('token', encode(String(JSON.stringify(res.data.token))))
+                prefs.set('token', encode(String(JSON.stringify(res.data.token))));
                 return callback(null, res.data.token);
             }
             return callback();
@@ -128,18 +136,33 @@ function login() {
             switch (err.code) {
                 case 401:
                     console.log('Couldn\'t log you in. Try again.'.red);
+                    rl.write(null, {name: 'enter'});
                     break;
                 case 422:
                     console.log('You already have an access token.'.red);
+                    rl.write(null, {name: 'enter'});
                     break;
             }
         }
-        if (authed) {
-            console.log('Sucessfully authenticated!'.green);
+        else {
+            if (authed) {
+                console.log('Sucessfully authenticated!'.green);
+                console.log('');
+                rl.write(null, {name: 'enter'});
+            }
         }
-        //console.log('');
-        rl.write(null, {name: 'enter'});
     });
+}
+
+function logout() {
+
+    var a = decode(prefs.get('token'));
+    console.log(a);
+   /* github.authorization.revoke({
+        access_token: decode(prefs.get('token'))
+    }).then(function (res) {
+        console.log("hola: ", res);
+    });*/
 }
 
 function encode (text) {
@@ -152,17 +175,6 @@ function decode (text) {
     return decipher.update(String(text), 'hex', 'utf8') + decipher.final('utf8')
 }
 
-/****************************************************************/
-
-clear();
-console.log(
-    figlet.textSync('ghshell', { horizontalLayout: 'full'}).yellow
-);
-console.log('');
-
-
-
-
 function completer(line) {
     var completions = 'exit help list login orgs repos'.split(' ');
     var hits = completions.filter(function(c) {
@@ -174,35 +186,37 @@ function completer(line) {
 }
 
 function listOrgs(obj) {
-    console.log('');
     for(var i = 0; i < obj.data.length; i++)
         rl.output.write(obj.data[i].login + '   ');
+    console.log('');
     rl.write(null, {name: 'enter'});
 }
+/****************************************************************/
 
-const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    completer,
-    prompt: 'ghshell > '.cyan
-});
+clear();
+console.log(
+    figlet.textSync('ghshell', { horizontalLayout: 'full'}).yellow
+);
+console.log('');
 
 rl.prompt();
 
-rl.on('line', function (line) {
+rl.on('line', async function (line) {
     switch(line.trim()) {
         case 'help':
             console.log('Show help');
             break;
         case 'login':
-            console.log('Enter your GitHub credentials.');
             login();
+            break;
+        case 'logout':
+            logout();
             break;
         case 'list':
             console.log('Show list');
             break;
         case 'orgs':
-            github.users.getOrgs({}, function (error, result) {
+            await github.users.getOrgs({}).then(function (result) {
                 listOrgs(result);
             });
             break;
