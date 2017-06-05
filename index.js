@@ -202,6 +202,43 @@ function listOrgs(obj) {
     console.log('');
     rl.write(null, {name: 'enter'});
 }
+
+/*function listRepos(obj) {
+    for(let i = 0; i < obj.data.length; i++)
+        rl.output.write(obj.data[i].name + '   ');
+    console.log('');
+    rl.write(null, {name: 'enter'});
+}*/
+
+function print(rep) {
+    for(let i = 0; i < rep.length; i++)
+        rl.output.write(rep[i].name + '   ');
+    console.log('');
+    rl.write(null, {name: 'enter'});
+}
+
+var rep = [];
+function listRepos(err, response) {
+    if (err)
+        return false;
+
+    rep = rep.concat(response['data']);
+    //console.log(rep.length)
+
+    if (github.hasNextPage(response)) {
+        print(response['data'])
+        github.getNextPage(response, listRepos);
+    }
+    else {
+        //console.log(Object.keys(rep).length)
+        print(response['data'])
+        //return rep;
+
+/*        console.log('')
+        print(rep);
+        rep = []*/
+    }
+}
 /****************************************************************/
 
 clear();
@@ -229,7 +266,35 @@ rl.on('line', async (line) => {
         case 'orgs':
             await github.users.getOrgs({}).then((result) => {
                 listOrgs(result);
+                if (github.hasNextPage(result)) {
+                    github.getNextPage(result, {}, function (err, result) {
+                        listOrgs(result);
+                    });
+                };
             });
+            break;
+        case 'repos':
+            await github.repos.getAll({
+                affiliation: 'owner',
+                per_page: 30
+            }//, listRepos);
+            ).then(async (result) => {
+                await listRepos('', result)
+                //await print(rep)
+                //await console.log('listo')
+            });
+
+
+                /*.then((result) => {
+                console.log(result.data.length);
+                listRepos(result);
+                rl.write(null, {name: 'enter'});
+                while (github.hasNextPage(result)) {
+                    github.getNextPage(result, {}, function (err, result) {
+                        listRepos(result)
+                    });
+                };
+            });*/
             break;
         case 'exit':
             process.exit(0);
