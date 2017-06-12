@@ -15,6 +15,8 @@ const readline   = require('readline');
 const crypto     = require('crypto');
 const path       = require('path');
 
+const promptString = 'ghshell > ';
+
 var prefs = UserSettings.file('.ghshell');
 var homedir = process.env.HOME || process.env.USERPROFILE;
 var seed = (() => {
@@ -26,7 +28,9 @@ var seed = (() => {
     }
 })();
 
-var dictionary = 'exit help list login logout orgs repos';
+var commands = require('./lib/commands').commands;
+var scope = 'main';
+var completions = Object.keys(commands[scope][0]);
 
 const github = new GitHubApi({
     debug: false,
@@ -148,6 +152,7 @@ function login() {
         }
         else {
             if (authed) {
+                getRepos();
                 console.log('Sucessfully authenticated!'.green);
                 console.log('');
                 rl.write(null, {name: 'enter'});
@@ -187,14 +192,11 @@ function decode (text) {
 }
 
 function completer(line) {
-    let completions = dictionary.split(' ');
-    let hits = completions.filter((c) => {
-        if (c.indexOf(line) === 0) {
-            return c;
-        }
-    });
-    return [hits && hits.length ? hits : completions, line];
+    let hits = completions.filter((c) => c.startsWith(line.split(' ').slice(-1)));
+
+    return [hits.length ? hits : completions, line];
 }
+
 
 function listOrgs(obj) {
     for(let i = 0; i < obj.data.length; i++)
@@ -202,13 +204,6 @@ function listOrgs(obj) {
     console.log('');
     rl.write(null, {name: 'enter'});
 }
-
-/*function listRepos(obj) {
-    for(let i = 0; i < obj.data.length; i++)
-        rl.output.write(obj.data[i].name + '   ');
-    console.log('');
-    rl.write(null, {name: 'enter'});
-}*/
 
 function print(rep) {
     for(let i = 0; i < rep.length; i++)
@@ -218,28 +213,59 @@ function print(rep) {
 }
 
 var rep = [];
-function listRepos(err, response) {
-    if (err)
-        return false;
+//function listRepos(err, response) {
+    //if (err)
+    //    return false;
 
-    rep = rep.concat(response['data']);
+    //rep = rep.concat(response['data']);
     //console.log(rep.length)
 
-    if (github.hasNextPage(response)) {
-        print(response['data'])
-        github.getNextPage(response, listRepos);
-    }
-    else {
+    //if (github.hasNextPage(response)) {
+       // print(response['data'])
+        //github.getNextPage(response, listRepos);
+    //}
+    //else {
         //console.log(Object.keys(rep).length)
-        print(response['data'])
+        //print(response['data'])
         //return rep;
 
 /*        console.log('')
         print(rep);
         rep = []*/
+//    }
+//}
+
+function store(res) {
+    for(let i = 0; i < rep.length; i++)
+        commands['main'][0]['cd'].push(rep[i].name);
+}
+
+function listRepos(err, response) {
+    if (err)
+        return false;
+
+    rep = rep.concat(response['data']);
+
+    if (github.hasNextPage(response)) {
+        store(response['data'])
+        github.getNextPage(response, listRepos);
+    }
+    else {
+        store(response['data'])
     }
 }
+
+function getRepos() {
+    github.repos.getAll({
+        affiliation: 'owner',
+        per_page: 100
+    }).then((result) => {
+        listRepos('', result)
+    });
+}
 /****************************************************************/
+var jsonfile = require('jsonfile')
+var file = './tmp.json';
 
 clear();
 console.log(
@@ -250,9 +276,18 @@ console.log('');
 rl.prompt();
 
 rl.on('line', async (line) => {
-    switch(line.trim()) {
+    var cmd = line.trim().split(' ');
+    var firstCmd = cmd[0];
+    var secCmd = cmd[1];
+
+    switch(firstCmd) {
         case 'help':
             console.log('Show help');
+            break;
+        case 'test':
+            jsonfile.writeFile(file, commands, (err) => {
+                console.log(err);
+            });
             break;
         case 'login':
             login();
@@ -264,46 +299,72 @@ rl.on('line', async (line) => {
             console.log('Show list');
             break;
         case 'orgs':
-            await github.users.getOrgs({}).then((result) => {
+            /*await github.users.getOrgs({}).then((result) => {
                 listOrgs(result);
                 if (github.hasNextPage(result)) {
                     github.getNextPage(result, {}, function (err, result) {
                         listOrgs(result);
                     });
                 };
-            });
+            });*/
+            console.log('Show orgs');
             break;
         case 'repos':
-            await github.repos.getAll({
+            /*await github.repos.getAll({
                 affiliation: 'owner',
                 per_page: 30
-            }//, listRepos);
-            ).then(async (result) => {
+            }).then(async (result) => {
                 await listRepos('', result)
-                //await print(rep)
-                //await console.log('listo')
-            });
-
-
-                /*.then((result) => {
-                console.log(result.data.length);
-                listRepos(result);
-                rl.write(null, {name: 'enter'});
-                while (github.hasNextPage(result)) {
-                    github.getNextPage(result, {}, function (err, result) {
-                        listRepos(result)
-                    });
-                };
             });*/
+            console.log('Show repos');
+            break;
+        case 'cd':
+            if (cmd.length === 2) {
+                console.log('Entro');
+                switch (secCmd) {
+                    case '..':
+                        rl.setPrompt(promptString.cyan);
+                        completions = Object.keys(commands[scope][0]);
+                        break;
+                    case 'hola':
+                        rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
+                        completions = commands[scope][0]['cd'];
+                        break;
+                }
+                ;
+                rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
+                completions = commands[scope][0]['cd'];
+            }
+            else {
+                console.log('Syntax error!'.red);
+                console.log('');
+            }
+            break;
+        case 'back':
+            rl.setPrompt(promptString.cyan);
+            completions = Object.keys(commands[scope][0]);
             break;
         case 'exit':
             process.exit(0);
-        //default:
-            //console.log('Show help');
-            //break;
+        default:
+            if (cmd.length != 0) {
+                console.log('Unrecognized command'.red);
+                console.log('')
+            }
+            break;
     }
     rl.prompt();
 }).on('close', () => {
     console.log('');
     process.exit(0);
 });
+
+
+/*
+ tab completion nodejs cli
+ https://stackoverflow.com/questions/19990639/how-to-add-tab-completion-to-a-nodejs-cli-app
+ https://github.com/mklabs/node-tabtab/blob/master/examples/api.js
+ https://github.com/0x00A/complete
+ https://www.npmjs.com/package/commander-completion
+
+ */
