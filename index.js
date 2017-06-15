@@ -153,6 +153,7 @@ function login() {
         else {
             if (authed) {
                 getRepos();
+                getOrgs();
                 console.log('Sucessfully authenticated!'.green);
                 console.log('');
                 rl.write(null, {name: 'enter'});
@@ -197,12 +198,39 @@ function completer(line) {
     return [hits.length ? hits : completions, line];
 }
 
-
+/*
 function listOrgs(obj) {
     for(let i = 0; i < obj.data.length; i++)
         rl.output.write(obj.data[i].login + '   ');
     console.log('');
     rl.write(null, {name: 'enter'});
+}
+*/
+
+var orgs = [];
+function listOrgs(err, obj) {
+
+    if (err)
+        return false;
+
+    orgs = orgs.concat(obj.data);
+
+    if (github.hasNextPage(obj)) {
+        storeOrgs();
+        github.getNextPage(obj, listRepos);
+    }
+    else {
+        storeOrgs();
+    }
+
+}
+
+function storeOrgs() {
+    for(let i = 0; i < orgs.length; i++) {
+        //commands['main'][0]['cd'].push(rep[i].name);
+        commands['main'][0]['orgs'].push(orgs[i].login);
+        commands['orgs'][0][orgs[i].login] = [];
+    }
 }
 
 function print(rep) {
@@ -236,10 +264,17 @@ var rep = [];
 //}
 
 function store(res) {
-    for(let i = 0; i < rep.length; i++)
+    for(let i = 0; i < rep.length; i++) {
         commands['main'][0]['cd'].push(rep[i].name);
+        commands['main'][0]['repos'].push(rep[i].name);
+    }
 }
 
+function storeOrgRepos() {
+    for(let i = 0; i < orgRepos.length; i++) {
+        commands['orgs'][0]['ULL-ESIT-TFM-test-evaluation-shell'].push(orgRepos[i].name);
+    }
+}
 function listRepos(err, response) {
     if (err)
         return false;
@@ -261,6 +296,40 @@ function getRepos() {
         per_page: 100
     }).then((result) => {
         listRepos('', result)
+    });
+};
+
+var orgRepos = [];
+function listOrgRepos(err, response) {
+    if (err)
+        return false;
+
+    orgRepos = orgRepos.concat(response['data']);
+
+    if (github.hasNextPage(response)) {
+        storeOrgRepos();
+        github.getNextPage(response, listRepos);
+    }
+    else {
+        storeOrgRepos();
+    }
+}
+
+function getOrgsRepos() {
+  github.repos.getForOrg({
+     org: 'ULL-ESIT-TFM-test-evaluation-shell',
+     per_page: 100
+  }).then((result) => {
+      //console.log(result['data'][0].name);
+      listOrgRepos('', result);
+  });
+};
+
+function getOrgs() {
+    github.users.getOrgs({
+    }).then((result) => {
+        listOrgs('', result);
+        getOrgsRepos();
     });
 }
 /****************************************************************/
@@ -307,7 +376,13 @@ rl.on('line', async (line) => {
                     });
                 };
             });*/
-            console.log('Show orgs');
+            completions = commands[scope][0]['orgs'];
+            rl.question('Select organization: ', (org) => {
+                rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
+                completions = commands['orgs'][0][org.toString()];
+                rl.write(null, {name: 'enter'});
+                rl.write(null, {name: 'enter'});
+            });
             break;
         case 'repos':
             /*await github.repos.getAll({
@@ -316,7 +391,14 @@ rl.on('line', async (line) => {
             }).then(async (result) => {
                 await listRepos('', result)
             });*/
-            console.log('Show repos');
+            //console.log('Select repository: ');
+            completions = commands[scope][0]['repos'];
+            rl.question('Select repository: ', (repo) => {
+                rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
+                rl.write(null, {name: 'enter'});
+                rl.write(null, {name: 'enter'});
+            });
+            rl.write(null, {name: 'enter'});
             break;
         case 'cd':
             if (cmd.length === 2) {
@@ -346,25 +428,15 @@ rl.on('line', async (line) => {
             break;
         case 'exit':
             process.exit(0);
-        default:
+        /*default:
             if (cmd.length != 0) {
                 console.log('Unrecognized command'.red);
                 console.log('')
             }
-            break;
+            break;*/
     }
     rl.prompt();
 }).on('close', () => {
     console.log('');
     process.exit(0);
 });
-
-
-/*
- tab completion nodejs cli
- https://stackoverflow.com/questions/19990639/how-to-add-tab-completion-to-a-nodejs-cli-app
- https://github.com/mklabs/node-tabtab/blob/master/examples/api.js
- https://github.com/0x00A/complete
- https://www.npmjs.com/package/commander-completion
-
- */
