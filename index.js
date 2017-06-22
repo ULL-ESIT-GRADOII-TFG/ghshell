@@ -8,12 +8,17 @@ var figlet       = require('figlet');
 var UserSettings = require('user-settings');
 var GitHubApi    = require('github');
 var Promise      = require('bluebird');
+var jsonfile     = require('jsonfile')
+var timestamp    = require('time-stamp');
 
 const fs         = require('fs');
 const files      = require('./lib/files');
 const readline   = require('readline');
 const crypto     = require('crypto');
 const path       = require('path');
+const { spawn }  = require('child_process');
+
+var commands     = require('./lib/commands').commands;
 
 const promptString = 'ghshell > ';
 
@@ -27,10 +32,10 @@ var seed = (() => {
         return crypto.randomBytes(256).toString('hex'); // or random string
     }
 })();
-
-var commands = require('./lib/commands').commands;
 var scope = 'main';
 var completions = Object.keys(commands[scope][0]);
+var currentRepo = undefined;
+var file = './tmp.json';
 
 const github = new GitHubApi({
     debug: false,
@@ -198,16 +203,18 @@ function completer(line) {
     return [hits.length ? hits : completions, line];
 }
 
-/*
-function listOrgs(obj) {
-    for(let i = 0; i < obj.data.length; i++)
-        rl.output.write(obj.data[i].login + '   ');
-    console.log('');
-    rl.write(null, {name: 'enter'});
+function storeOrgs() {
+    while (orgs.length !== 0) {
+        let o = orgs.shift();
+        commands['main'][0]['orgs'].push(o.login);
+        commands['orgs'][0][o.login] = [];
+        h[o.login] = [];
+        getOrgsRepos(o.login);
+    }
 }
-*/
 
 var orgs = [];
+var h = {};
 function listOrgs(err, obj) {
 
     if (err)
@@ -217,7 +224,7 @@ function listOrgs(err, obj) {
 
     if (github.hasNextPage(obj)) {
         storeOrgs();
-        github.getNextPage(obj, listRepos);
+        github.getNextPage(obj, listOrgs);
     }
     else {
         storeOrgs();
@@ -225,56 +232,62 @@ function listOrgs(err, obj) {
 
 }
 
-function storeOrgs() {
-    for(let i = 0; i < orgs.length; i++) {
-        //commands['main'][0]['cd'].push(rep[i].name);
-        commands['main'][0]['orgs'].push(orgs[i].login);
-        commands['orgs'][0][orgs[i].login] = [];
-    }
+function getOrgs() {
+    github.users.getOrgs({
+    }).then((result) => {
+        listOrgs('', result);
+    });
 }
 
-function print(rep) {
-    for(let i = 0; i < rep.length; i++)
-        rl.output.write(rep[i].name + '   ');
-    console.log('');
-    rl.write(null, {name: 'enter'});
+function storeOrgRepos(organization) {
+    for(let i = 0; i < h[organization].length; i++) {
+        commands['orgs'][0][organization].push(h[organization][i].name);
+    }
+    commands['orgs'][0][organization].push('clone');
+    commands['orgs'][0][organization].push('back');
+
+}
+
+function getOrgsRepos(organization) {
+    github.repos.getForOrg({
+        org: organization,
+        per_page: 100
+    }).then((result) => {
+        //console.log(result['data'][0].name);
+        listOrgRepos('', result, organization);
+    });
+};
+
+
+function listOrgRepos(err, response, organization) {
+    if (err)
+        return false;
+
+    h[organization] = h[organization].concat(response['data']);
+
+    if (github.hasNextPage(response)) {
+        storeOrgRepos(organization);
+        github.getNextPage(response, listOrgRepos);
+    }
+    else {
+        storeOrgRepos(organization);
+    }
 }
 
 var rep = [];
-//function listRepos(err, response) {
-    //if (err)
-    //    return false;
 
-    //rep = rep.concat(response['data']);
-    //console.log(rep.length)
-
-    //if (github.hasNextPage(response)) {
-       // print(response['data'])
-        //github.getNextPage(response, listRepos);
-    //}
-    //else {
-        //console.log(Object.keys(rep).length)
-        //print(response['data'])
-        //return rep;
-
-/*        console.log('')
-        print(rep);
-        rep = []*/
-//    }
-//}
-
-function store(res) {
+function store() {
     for(let i = 0; i < rep.length; i++) {
         commands['main'][0]['cd'].push(rep[i].name);
-        commands['main'][0]['repos'].push(rep[i].name);
+        //commands['main'][0]['repos'].push(rep[i].name);
+        commands['repos'][rep[i].name] = {
+            'clone_url': rep[i].clone_url
+        }
     }
 }
 
-function storeOrgRepos() {
-    for(let i = 0; i < orgRepos.length; i++) {
-        commands['orgs'][0]['ULL-ESIT-TFM-test-evaluation-shell'].push(orgRepos[i].name);
-    }
-}
+
+
 function listRepos(err, response) {
     if (err)
         return false;
@@ -282,11 +295,11 @@ function listRepos(err, response) {
     rep = rep.concat(response['data']);
 
     if (github.hasNextPage(response)) {
-        store(response['data'])
+        store();
         github.getNextPage(response, listRepos);
     }
     else {
-        store(response['data'])
+        store();
     }
 }
 
@@ -299,50 +312,18 @@ function getRepos() {
     });
 };
 
-var orgRepos = [];
-function listOrgRepos(err, response) {
-    if (err)
-        return false;
 
-    orgRepos = orgRepos.concat(response['data']);
-
-    if (github.hasNextPage(response)) {
-        storeOrgRepos();
-        github.getNextPage(response, listRepos);
-    }
-    else {
-        storeOrgRepos();
-    }
-}
-
-function getOrgsRepos() {
-  github.repos.getForOrg({
-     org: 'ULL-ESIT-TFM-test-evaluation-shell',
-     per_page: 100
-  }).then((result) => {
-      //console.log(result['data'][0].name);
-      listOrgRepos('', result);
-  });
-};
-
-function getOrgs() {
-    github.users.getOrgs({
-    }).then((result) => {
-        listOrgs('', result);
-        getOrgsRepos();
-    });
-}
 /****************************************************************/
-var jsonfile = require('jsonfile')
-var file = './tmp.json';
-
 clear();
 console.log(
     figlet.textSync('ghshell', { horizontalLayout: 'full'}).yellow
 );
 console.log('');
+console.log('');
+login();
 
 rl.prompt();
+
 
 rl.on('line', async (line) => {
     var cmd = line.trim().split(' ');
@@ -364,20 +345,9 @@ rl.on('line', async (line) => {
         case 'logout':
             logout();
             break;
-        case 'list':
-            console.log('Show list');
-            break;
         case 'orgs':
-            /*await github.users.getOrgs({}).then((result) => {
-                listOrgs(result);
-                if (github.hasNextPage(result)) {
-                    github.getNextPage(result, {}, function (err, result) {
-                        listOrgs(result);
-                    });
-                };
-            });*/
-            completions = commands[scope][0]['orgs'];
-            rl.question('Select organization: ', (org) => {
+            completions = Object.keys(commands['orgs'][0]);
+            rl.question('Select organization: '.yellow, (org) => {
                 rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
                 completions = commands['orgs'][0][org.toString()];
                 rl.write(null, {name: 'enter'});
@@ -385,22 +355,17 @@ rl.on('line', async (line) => {
             });
             break;
         case 'repos':
-            /*await github.repos.getAll({
-                affiliation: 'owner',
-                per_page: 30
-            }).then(async (result) => {
-                await listRepos('', result)
-            });*/
-            //console.log('Select repository: ');
-            completions = commands[scope][0]['repos'];
-            rl.question('Select repository: ', (repo) => {
+            completions = Object.keys(commands['repos']);
+            rl.question('Select repository: '.yellow, (repo) => {
                 rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
+                currentRepo = repo;
+                completions = commands[scope][0]['repos'];
                 rl.write(null, {name: 'enter'});
                 rl.write(null, {name: 'enter'});
             });
             rl.write(null, {name: 'enter'});
             break;
-        case 'cd':
+        /*case 'cd':
             if (cmd.length === 2) {
                 console.log('Entro');
                 switch (secCmd) {
@@ -412,8 +377,7 @@ rl.on('line', async (line) => {
                         rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
                         completions = commands[scope][0]['cd'];
                         break;
-                }
-                ;
+                };
                 rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
                 completions = commands[scope][0]['cd'];
             }
@@ -421,10 +385,64 @@ rl.on('line', async (line) => {
                 console.log('Syntax error!'.red);
                 console.log('');
             }
-            break;
+            break;*/
         case 'back':
             rl.setPrompt(promptString.cyan);
             completions = Object.keys(commands[scope][0]);
+            break;
+        case 'clone':
+            let matchOn;
+            let matches = [];
+
+            try {               // Regexp
+                matchOn = eval(secCmd);
+                matches = Object.keys(commands['repos']).filter(s => matchOn.test(s));
+            }
+            catch (err) {       // String
+                if (secCmd !== undefined) {
+                    matchOn = secCmd;
+                    matches = Object.keys(commands['repos']).filter(s => s.includes(matchOn));
+                }
+                else {
+                    if (currentRepo !== undefined)
+                        matches.push(currentRepo);
+                }
+            }
+
+            if (matches.length > 0) {
+                for (let i = 0; i < matches.length; i++) {
+                    const child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
+                    console.log(`Cloning ${matches[i]}...`.yellow.bold + ` (see ${matches[i]}.log for more information)`.yellow);
+                    //let  t = new Spinner('Cloning '.yellow + matches[i].yellow + "...".yellow );
+                    //t.start();
+
+                    child.on('error', (err) => {
+                        console.log('Failed to start child process.');
+                    });
+
+                    child.stderr.on('data', (data) => {
+                        fs.writeFile("./" + matches[i] + ".log",
+                            "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
+                            {flag: 'a'}, () => {
+                            }
+                        );
+                    });
+
+                    child.on('close', function () {
+                        //console.log("Cloning " + matches[i] + "... [done]");
+                        //t.stop();
+                        //rl.write(null, {name: 'enter'});
+                    });
+                }
+                ;
+            }
+            else {
+                if (secCmd !== undefined)
+                    console.log(`Repository ${secCmd} not found`.red.bold);
+                else
+                    console.log(`There isn't any repository to clone`.red.bold);
+            }
+            console.log('');
             break;
         case 'exit':
             process.exit(0);

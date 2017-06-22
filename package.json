@@ -26,7 +26,8 @@
   "homepage": "https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA#readme",
   "devDependencies": {
     "chai": "3.5.0",
-    "mocha": "3.2.0"
+    "mocha": "3.2.0",
+    "jsonfile": "3.0.0"
   },
   "dependencies": {
     "bluebird": "3.5.0",
@@ -35,7 +36,7 @@
     "colors": "1.1.2",
     "figlet": "1.2.0",
     "github": "9.2.0",
-    "jsonfile": "^3.0.0",
+    "time-stamp": "2.0.0",
     "user-settings": "0.1.5"
   },
   "engines": {
