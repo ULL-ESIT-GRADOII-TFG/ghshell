@@ -198,8 +198,15 @@ function decode (text) {
 }
 
 function completer(line) {
-    let hits = completions.filter((c) => c.startsWith(line.split(' ').slice(-1)));
+    let cmds = line.split(' ');
+    let hits = completions.filter((c) => c.startsWith(cmds.slice(-1)));
 
+    if ((cmds.length > 1) && (hits.length === 1)) {
+        let lastCmd = cmds.slice(-1)[0];
+        let pos = lastCmd.length;
+        rl.line = line.slice(0, -pos).concat(hits[0]);
+        rl.cursor = rl.line.length + 1;
+    }
     return [hits.length ? hits : completions, line];
 }
 
