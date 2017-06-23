@@ -35,6 +35,7 @@ var seed = (() => {
 var scope = 'main';
 var completions = Object.keys(commands[scope][0]);
 var currentRepo = undefined;
+var currentOrg  = undefined;
 var file = './tmp.json';
 
 const github = new GitHubApi({
@@ -198,7 +199,7 @@ function decode (text) {
 }
 
 function completer(line) {
-    let cmds = line.split(' ');
+    let cmds = line.split(' ').sort();
     let hits = completions.filter((c) => c.startsWith(cmds.slice(-1)));
 
     if ((cmds.length > 1) && (hits.length === 1)) {
@@ -213,8 +214,7 @@ function completer(line) {
 function storeOrgs() {
     while (orgs.length !== 0) {
         let o = orgs.shift();
-        commands['main'][0]['orgs'].push(o.login);
-        commands['orgs'][0][o.login] = [];
+        commands['orgs'][o.login] = {};
         h[o.login] = [];
         getOrgsRepos(o.login);
     }
@@ -248,11 +248,10 @@ function getOrgs() {
 
 function storeOrgRepos(organization) {
     for(let i = 0; i < h[organization].length; i++) {
-        commands['orgs'][0][organization].push(h[organization][i].name);
+        commands['orgs'][organization][h[organization][i].name] = {
+            'clone_url': h[organization][i].clone_url
+        }
     }
-    commands['orgs'][0][organization].push('clone');
-    commands['orgs'][0][organization].push('back');
-
 }
 
 function getOrgsRepos(organization) {
@@ -260,7 +259,6 @@ function getOrgsRepos(organization) {
         org: organization,
         per_page: 100
     }).then((result) => {
-        //console.log(result['data'][0].name);
         listOrgRepos('', result, organization);
     });
 };
@@ -286,7 +284,6 @@ var rep = [];
 function store() {
     for(let i = 0; i < rep.length; i++) {
         commands['main'][0]['cd'].push(rep[i].name);
-        //commands['main'][0]['repos'].push(rep[i].name);
         commands['repos'][rep[i].name] = {
             'clone_url': rep[i].clone_url
         }
@@ -340,6 +337,7 @@ rl.on('line', async (line) => {
     switch(firstCmd) {
         case 'help':
             console.log('Show help');
+            console.log('');
             break;
         case 'test':
             jsonfile.writeFile(file, commands, (err) => {
@@ -353,49 +351,63 @@ rl.on('line', async (line) => {
             logout();
             break;
         case 'orgs':
-            completions = Object.keys(commands['orgs'][0]);
-            rl.question('Select organization: '.yellow, (org) => {
-                rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
-                completions = commands['orgs'][0][org.toString()];
+            completions = Object.keys(commands['orgs']);
+            rl.question('Select organization'.yellow.bold + ' (left empty for cancel the action): '.yellow, (org) => {
+                if (org !== '') {
+                    rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
+                    completions = commands[scope][0]['orgs'];
+                    currentOrg = org;
+                }
+                else
+                    completions = Object.keys(commands[scope][0]);
+
                 rl.write(null, {name: 'enter'});
                 rl.write(null, {name: 'enter'});
             });
             break;
         case 'repos':
-            completions = Object.keys(commands['repos']);
-            rl.question('Select repository: '.yellow, (repo) => {
-                rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
-                currentRepo = repo;
-                completions = commands[scope][0]['repos'];
+            if (currentOrg !== undefined)
+                completions = Object.keys(commands['orgs'][currentOrg.toString()]);
+            else
+                completions = Object.keys(commands['repos']);
+
+            rl.question('Select repository'.yellow.bold + ' (left empty for cancel the action): '.yellow, (repo) => {
+                if (repo !== '') {
+                    if (currentOrg !== undefined)
+                        rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + currentOrg.yellow + ` ~> ${repo}`.red.bold + ') > '.cyan);
+                    else
+                        rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
+                    currentRepo = repo;
+                    completions = commands[scope][0]['repos'];
+                }
+                else {
+                    if (currentOrg !== undefined)
+                        completions = commands[scope][0]['orgs'];
+                    else
+                        completions = Object.keys(commands[scope][0]);
+                }
                 rl.write(null, {name: 'enter'});
                 rl.write(null, {name: 'enter'});
             });
-            rl.write(null, {name: 'enter'});
             break;
-        /*case 'cd':
-            if (cmd.length === 2) {
-                console.log('Entro');
-                switch (secCmd) {
-                    case '..':
-                        rl.setPrompt(promptString.cyan);
-                        completions = Object.keys(commands[scope][0]);
-                        break;
-                    case 'hola':
-                        rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
-                        completions = commands[scope][0]['cd'];
-                        break;
-                };
-                rl.setPrompt(promptString.slice(0, -2).cyan + '(dir)'.yellow + ' > '.cyan);
-                completions = commands[scope][0]['cd'];
+        case 'back':
+            if (currentOrg !== undefined) {
+                if (currentRepo !== undefined) {
+                    rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + currentOrg.yellow + ') > '.cyan);
+                    completions = commands[scope][0]['orgs'];
+                }
+                else {
+                    rl.setPrompt(promptString.cyan);
+                    completions = Object.keys(commands[scope][0]);
+                    currentOrg  = undefined;
+                }
             }
             else {
-                console.log('Syntax error!'.red);
-                console.log('');
+                rl.setPrompt(promptString.cyan);
+                completions = Object.keys(commands[scope][0]);
+                currentOrg  = undefined;
             }
-            break;*/
-        case 'back':
-            rl.setPrompt(promptString.cyan);
-            completions = Object.keys(commands[scope][0]);
+            currentRepo = undefined;
             break;
         case 'clone':
             let matchOn;
@@ -403,12 +415,18 @@ rl.on('line', async (line) => {
 
             try {               // Regexp
                 matchOn = eval(secCmd);
-                matches = Object.keys(commands['repos']).filter(s => matchOn.test(s));
+                if (currentOrg !== undefined)
+                    matches = Object.keys(commands['orgs'][currentOrg]).filter(s => matchOn.test(s));
+                else
+                    matches = Object.keys(commands['repos']).filter(s => matchOn.test(s));
             }
             catch (err) {       // String
                 if (secCmd !== undefined) {
                     matchOn = secCmd;
-                    matches = Object.keys(commands['repos']).filter(s => s.includes(matchOn));
+                    if (currentOrg !== undefined)
+                        matches = Object.keys(commands['orgs'][currentOrg]).filter(s => s.includes(matchOn));
+                    else
+                        matches = Object.keys(commands['repos']).filter(s => s.includes(matchOn));
                 }
                 else {
                     if (currentRepo !== undefined)
@@ -418,8 +436,16 @@ rl.on('line', async (line) => {
 
             if (matches.length > 0) {
                 for (let i = 0; i < matches.length; i++) {
-                    const child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
-                    console.log(`Cloning ${matches[i]}...`.yellow.bold + ` (see ${matches[i]}.log for more information)`.yellow);
+                    var child;
+
+                    if (currentOrg !== undefined) {
+                        child = spawn('git', ['clone', '--progress', commands['orgs'][currentOrg.toString()][matches[i]].clone_url]);
+                    }
+                    else {
+                        child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
+                    }
+
+                    console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}.log`.blue.underline + " for more information)".blue);
                     //let  t = new Spinner('Cloning '.yellow + matches[i].yellow + "...".yellow );
                     //t.start();
 
