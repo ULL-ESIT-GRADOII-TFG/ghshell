@@ -283,7 +283,6 @@ var rep = [];
 
 function store() {
     for(let i = 0; i < rep.length; i++) {
-        commands['main'][0]['cd'].push(rep[i].name);
         commands['repos'][rep[i].name] = {
             'clone_url': rep[i].clone_url
         }
@@ -435,14 +434,19 @@ rl.on('line', async (line) => {
             }
 
             if (matches.length > 0) {
+                if (currentOrg !== undefined)
+                    var child2 = spawn('mkdir', ['-p', currentOrg.toString()]);
+
                 for (let i = 0; i < matches.length; i++) {
-                    var child;
+                    var child, logFilePath;
 
                     if (currentOrg !== undefined) {
-                        child = spawn('git', ['clone', '--progress', commands['orgs'][currentOrg.toString()][matches[i]].clone_url]);
+                        child = spawn('git', ['clone', '--progress', commands['orgs'][currentOrg.toString()][matches[i]].clone_url, `${currentOrg}/${matches[i]}`]);
+                        logFilePath = `./${currentOrg}/${matches[i]}.log`
                     }
                     else {
                         child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
+                        logFilePath = `./${matches[i]}.log`
                     }
 
                     console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}.log`.blue.underline + " for more information)".blue);
@@ -454,7 +458,7 @@ rl.on('line', async (line) => {
                     });
 
                     child.stderr.on('data', (data) => {
-                        fs.writeFile("./" + matches[i] + ".log",
+                        fs.writeFile(logFilePath,
                             "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
                             {flag: 'a'}, () => {
                             }
