@@ -199,7 +199,7 @@ function decode (text) {
 }
 
 function completer(line) {
-    let cmds = line.split(' ').sort();
+    let cmds = line.split(' ');
     let hits = completions.filter((c) => c.startsWith(cmds.slice(-1)));
 
     if ((cmds.length > 1) && (hits.length === 1)) {
@@ -208,7 +208,7 @@ function completer(line) {
         rl.line = line.slice(0, -pos).concat(hits[0]);
         rl.cursor = rl.line.length + 1;
     }
-    return [hits.length ? hits : completions, line];
+    return [hits.length ? hits.sort() : completions.sort(), line];
 }
 
 function storeOrgs() {
@@ -353,9 +353,15 @@ rl.on('line', async (line) => {
             completions = Object.keys(commands['orgs']);
             rl.question('Select organization'.yellow.bold + ' (left empty for cancel the action): '.yellow, (org) => {
                 if (org !== '') {
-                    rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
-                    completions = commands[scope][0]['orgs'];
-                    currentOrg = org;
+                    if (completions.includes(org)) {
+                        rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + org.yellow + ') > '.cyan);
+                        completions = commands[scope][0]['orgs'];
+                        currentOrg = org;
+                    }
+                    else {
+                        console.log(`Organization ${org} not found`.red.bold);
+                        completions = Object.keys(commands[scope][0]);
+                    }
                 }
                 else
                     completions = Object.keys(commands[scope][0]);
@@ -372,12 +378,21 @@ rl.on('line', async (line) => {
 
             rl.question('Select repository'.yellow.bold + ' (left empty for cancel the action): '.yellow, (repo) => {
                 if (repo !== '') {
-                    if (currentOrg !== undefined)
-                        rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + currentOrg.yellow + ` ~> ${repo}`.red.bold + ') > '.cyan);
-                    else
-                        rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
-                    currentRepo = repo;
-                    completions = commands[scope][0]['repos'];
+                    if (completions.includes(repo)) {
+                        if (currentOrg !== undefined)
+                            rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + currentOrg.yellow + ` ~> ${repo}`.red.bold + ') > '.cyan);
+                        else
+                            rl.setPrompt(promptString.slice(0, -2).cyan + '('.cyan + repo.yellow + ') > '.cyan);
+                        currentRepo = repo;
+                        completions = commands[scope][0]['repos'];
+                    }
+                    else {
+                        console.log(`Repository ${repo} not found`.red.bold);
+                        if (currentOrg !== undefined)
+                            completions = commands[scope][0]['orgs'];
+                        else
+                            completions = Object.keys(commands[scope][0]);
+                    }
                 }
                 else {
                     if (currentOrg !== undefined)
@@ -423,9 +438,9 @@ rl.on('line', async (line) => {
                 if (secCmd !== undefined) {
                     matchOn = secCmd;
                     if (currentOrg !== undefined)
-                        matches = Object.keys(commands['orgs'][currentOrg]).filter(s => s.includes(matchOn));
+                        matches = Object.keys(commands['orgs'][currentOrg]).filter(s => s === matchOn);
                     else
-                        matches = Object.keys(commands['repos']).filter(s => s.includes(matchOn));
+                        matches = Object.keys(commands['repos']).filter(s => s === matchOn);
                 }
                 else {
                     if (currentRepo !== undefined)
@@ -480,6 +495,23 @@ rl.on('line', async (line) => {
                     console.log(`There isn't any repository to clone`.red.bold);
             }
             console.log('');
+            break;
+        case 'assignments':
+            let pattern;
+            let hits = [];
+
+            try {               // Regexp
+                pattern = eval(secCmd);
+                hits = Object.keys(commands['orgs'][currentOrg]).filter(s => pattern.test(s));
+            }
+            catch (err) {
+                if (secCmd !== undefined) {    // ************ Controlar errores
+                    pattern = secCmd;
+                    hits = Object.keys(commands['orgs'][currentOrg]).filter(s => s.split('-')[0] === pattern);
+                }
+            }
+            for (let i = 0; i < hits.length; i++)
+                console.log(hits[i] + "   ");
             break;
         case 'exit':
             process.exit(0);
