@@ -251,8 +251,20 @@ function getOrgs() {
 function storeOrgRepos(organization) {
     for(let i = 0; i < h[organization].length; i++) {
         commands['orgs'][organization][h[organization][i].name] = {
-            'clone_url': h[organization][i].clone_url
+            'owner': {
+                'login': h[organization][i]['owner'].login
+            },
+            'clone_url': h[organization][i].clone_url,
+            'contributors': []
         }
+
+        github.repos.getContributors({                             // Get contributors
+            'owner': h[organization][i]['owner'].login,
+            'repo': h[organization][i].name
+        }).then((res) => {
+            for (let j = 0; j < res['data'].length; j++)
+                commands['orgs'][organization][h[organization][i].name]['contributors'].push(res['data'][j]['login']);
+        })
     }
 }
 
@@ -425,10 +437,21 @@ function repositories(secCmd) {
 }
 
 function getOwner() {
-    if (currentRepo) {
-        console.log(commands['repos'][currentRepo]['owner']['login']);
-        rl.write(null, {name: 'enter'});
+    if (currentOrg) {
+        if (currentRepo) {
+            let owner = commands['orgs'][currentOrg][currentRepo]['owner']['login'];
+            let contributors = commands['orgs'][currentOrg][currentRepo]['contributors'];
+            rl.write(null, {name: 'enter'});
+            console.log(`Owner: `.blue.bold + `${owner}`);
+            console.log(`Contributors: `.blue.bold + `${contributors}`);
+        }
     }
+    else
+        if (currentRepo) {
+            let owner = commands['repos'][currentRepo]['owner']['login'];
+            console.log(`Owner: `.blue.bold + `${owner}`);
+            rl.write(null, {name: 'enter'});
+        }
     console.log('');
 }
 
