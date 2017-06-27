@@ -8,8 +8,8 @@ var figlet       = require('figlet');
 var UserSettings = require('user-settings');
 var GitHubApi    = require('github');
 var Promise      = require('bluebird');
-var jsonfile     = require('jsonfile');
 var timestamp    = require('time-stamp');
+var lineByLine   = require('n-readlines');
 
 const fs         = require('fs');
 const files      = require('./lib/files');
@@ -17,6 +17,8 @@ const readline   = require('readline');
 const crypto     = require('crypto');
 const path       = require('path');
 const { spawn }  = require('child_process');
+const util       = require('util');
+const exec       = util.promisify(require('child_process').exec);
 
 var commands     = require('./lib/commands').commands;
 
@@ -37,6 +39,7 @@ var completions = Object.keys(commands[scope][0]);
 var currentRepo = undefined;
 var currentOrg  = undefined;
 var file = './tmp.json';
+let matches;
 
 const github = new GitHubApi({
     debug: false,
@@ -75,7 +78,7 @@ function hiddenPassword(query, callback) {
         rl.history = rl.history.slice(1);
         callback(value);
     });
-};
+}
 
 function getGithubCredentials(callback) {
 
@@ -86,7 +89,7 @@ function getGithubCredentials(callback) {
             callback({username: user, password: pass});
         });
     });
-};
+}
 
 function getGithubToken(callback) {
 
@@ -125,7 +128,7 @@ function getGithubToken(callback) {
             return callback();
         });
     });
-};
+}
 
 
 function githubAuth(callback) {
@@ -140,7 +143,7 @@ function githubAuth(callback) {
         });
         return callback(null, token);
     });
-};
+}
 
 function login() {
     githubAuth((err, authed) => {
@@ -166,7 +169,7 @@ function login() {
             }
         }
     });
-};
+}
 
 function clearCredentials() {
     prefs.unset('token');
@@ -174,7 +177,7 @@ function clearCredentials() {
     prefs.unset('client_id');
     prefs.unset('username');
     prefs.unset('password');
-};
+}
 
 function logout() {
 
@@ -186,17 +189,17 @@ function logout() {
     }).then(() => {
         clearCredentials();
     });
-};
+}
 
 function encode (text) {
     let cipher = crypto.createCipher('aes128', seed);
     return cipher.update(new Buffer(text).toString('utf8'), 'utf8', 'hex') + cipher.final('hex')
-};
+}
 
 function decode (text) {
     let decipher = crypto.createDecipher('aes128', seed);
     return decipher.update(String(text), 'hex', 'utf8') + decipher.final('utf8')
-};
+}
 
 function completer(line) {
     let cmds = line.split(' ');
@@ -209,7 +212,7 @@ function completer(line) {
         rl.cursor = rl.line.length + 1;
     }
     return [hits.length ? hits.sort() : completions.sort(), line];
-};
+}
 
 function storeOrgs() {
     while (orgs.length !== 0) {
@@ -218,7 +221,7 @@ function storeOrgs() {
         h[o.login] = [];
         getOrgsRepos(o.login);
     }
-};
+}
 
 var orgs = [];
 var h = {};
@@ -235,14 +238,14 @@ function listOrgs(err, obj) {
     }
     else
         storeOrgs();
-};
+}
 
 function getOrgs() {
     github.users.getOrgs({
     }).then((result) => {
         listOrgs('', result);
     });
-};
+}
 
 function storeOrgRepos(organization) {
     for(let i = 0; i < h[organization].length; i++) {
@@ -250,7 +253,7 @@ function storeOrgRepos(organization) {
             'clone_url': h[organization][i].clone_url
         }
     }
-};
+}
 
 function getOrgsRepos(organization) {
     github.repos.getForOrg({
@@ -259,7 +262,7 @@ function getOrgsRepos(organization) {
     }).then((result) => {
         listOrgRepos('', result, organization);
     });
-};
+}
 
 function listOrgRepos(err, response, organization) {
     if (err)
@@ -273,7 +276,7 @@ function listOrgRepos(err, response, organization) {
     }
     else
         storeOrgRepos(organization);
-};
+}
 
 var rep = [];
 
@@ -283,7 +286,7 @@ function store() {
             'clone_url': rep[i].clone_url
         }
     }
-};
+}
 
 function listRepos(err, response) {
     if (err)
@@ -297,7 +300,7 @@ function listRepos(err, response) {
     }
     else
         store();
-};
+}
 
 function getRepos() {
     github.repos.getAll({
@@ -306,7 +309,7 @@ function getRepos() {
     }).then((result) => {
         listRepos('', result)
     });
-};
+}
 
 function organizations(secCmd) {
     if (!secCmd) {
@@ -473,7 +476,8 @@ function search(secCmd) {
 
     return (matches);
 }
-function clone(matches, assignment) {
+
+function setLogFilePath(match, assignment) {
 
     let logFilePath;
     if (currentOrg)
@@ -481,11 +485,20 @@ function clone(matches, assignment) {
     else
         logFilePath = '.';
 
+    if (assignment)
+        logFilePath += `/${match}`;
+
+    return logFilePath;
+}
+
+function clone(matches, assignment) {
+
     let assignmentName;
-    if (assignment) {
+
+    if (assignment)
         assignmentName = matches[0].split('-')[0];
-        logFilePath += `/${assignmentName}`;
-    }
+
+    let logFilePath = setLogFilePath(assignmentName, assignment);
 
     if (matches.length > 0) {
         if (currentOrg) {                     // If we're inside of an organization, create a folder for it
@@ -507,8 +520,6 @@ function clone(matches, assignment) {
                 child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
 
             console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}.log`.blue.underline + " for more information)".blue);
-            //let  t = new Spinner('Cloning '.yellow + matches[i].yellow + "...".yellow );
-            //t.start();
 
             child.on('error', (err) => {
                 console.log('Failed to start child process.');
@@ -521,20 +532,14 @@ function clone(matches, assignment) {
                     }
                 );
             });
-
-            child.on('close', function () {
-                //console.log("Cloning " + matches[i] + "... [done]");
-                //t.stop();
-                //rl.write(null, {name: 'enter'});
-            });
-        };
+        }
     }
     else
         console.log("Repository not found".red.bold);
     console.log('');
 }
 
-function assignments(cmds) {
+async function assignments(cmds) {
 
     let matches = [];
 
@@ -542,13 +547,18 @@ function assignments(cmds) {
         matches = matching(cmds[0], true);
 
         if (matches.length > 0) {
-            if (!cmds[1])
+            if (!cmds[1]) {
                 for (let i = 0; i < matches.length; i++)
                     console.log(matches[i] + "   ");
-            else
+                console.log('');
+            }
+            else {
                 if (cmds[1] === 'clone')
                     clone(matches, true);
-            console.log('');
+                if (cmds[1] === 'script') {
+                    await runScript(cmds[2], matches, true);
+                }
+            }
         }
         else {
             console.log(`Assignment not found`.red.bold);
@@ -561,6 +571,42 @@ function assignments(cmds) {
     }
 }
 
+async function pwd() {
+    const {stdout} = await exec('pwd');
+    console.log(stdout);
+}
+
+async function runScript(filePath, matches, assignment) {
+
+    if ((filePath) && (matches.length !== 0)) {
+        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+        let fullPathFile = (path.isAbsolute(filePath)? filePath : path.join(process.cwd(), filePath));
+
+        for (let i = 0; i < matches.length; i++) {
+            if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
+                let dstPathFile = `${logFilePath}/${matches[i]}/${path.basename(fullPathFile)}`;
+                fs.writeFileSync(dstPathFile, fs.readFileSync(fullPathFile));
+
+                let liner = new lineByLine(dstPathFile);
+                let line;
+                while (line = liner.next()) {
+                    const {stdout} = await exec(`(cd ${matches[i]}; ${line.toString('ascii')})`);
+                    fs.writeFile(`${logFilePath}/${matches[i]}.log`,
+                        "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
+                        {flag: 'a'}, () => {
+                        }
+                    );
+                }
+                console.log(`Execution of ${path.basename(fullPathFile).underline} in ${matches[i].underline} has finished`.green.bold);
+            }
+            else
+                console.log(`Repository ${matches[i].underline} not found. Try to clone it first!`.red.bold);
+        }
+    }
+    else
+        console.log(`Error! Bad syntax`.red.bold);
+    console.log('');
+}
 /****************************************************************/
 clear();
 console.log(
@@ -581,11 +627,6 @@ rl.on('line', async (line) => {
             console.log('Show help');
             console.log('');
             break;
-        case 'test':
-            jsonfile.writeFile(file, commands, (err) => {
-                console.log(err);
-            });
-            break;
         case 'login':
             login();
             break;
@@ -602,20 +643,21 @@ rl.on('line', async (line) => {
             back_to();
             break;
         case 'clone':
-            let matches = search(cmd.slice(1)[0]);
+            matches = search(cmd.slice(1)[0]);
             clone(matches, false);
             break;
         case 'assignments':
-            assignments(cmd.slice(1));
+            await assignments(cmd.slice(1));
+            break;
+        case 'pwd':
+            await pwd();
+            break;
+        case 'script':
+            matches = search(cmd.slice(2)[0]);
+            await runScript(cmd.slice(1)[0], matches, false);
             break;
         case 'exit':
             process.exit(0);
-        /*default:
-            if (cmd.length != 0) {
-                console.log('Unrecognized command'.red);
-                console.log('')
-            }
-            break;*/
     }
     rl.prompt();
 }).on('close', () => {
