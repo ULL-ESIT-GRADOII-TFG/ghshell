@@ -1,5 +1,6 @@
 #! /usr/bin/env node
 
+var util = require('util');
 var colors       = require('colors');
 var clear        = require('clear');
 var CLI          = require('clui');
@@ -7,8 +8,8 @@ var Spinner      = CLI.Spinner;
 var figlet       = require('figlet');
 var UserSettings = require('user-settings');
 var GitHubApi    = require('github');
-var Promise      = require('bluebird');
-var jsonfile     = require('jsonfile')
+//var Promise      = require('bluebird');
+var jsonfile     = require('jsonfile');
 var timestamp    = require('time-stamp');
 
 const fs         = require('fs');
@@ -42,7 +43,7 @@ const github = new GitHubApi({
     protocol: "https",
     host: "api.github.com",
     followRedirects: false, // default: true; there's currently an issue with non-get redirects, so allow ability to disable follow-redirects
-    timeout: 5000,
+    timeout: 20000,
     Promise: Promise
 });
 
@@ -209,6 +210,7 @@ function storeOrgs() {
         commands['main'][0]['orgs'].push(o.login);
         commands['orgs'][0][o.login] = [];
         h[o.login] = [];
+        //console.log(util.inspect(o.login, {depth: null}));
         getOrgsRepos(o.login);
     }
 }
@@ -260,9 +262,10 @@ function getOrgsRepos(organization) {
 
 
 function listOrgRepos(err, response, organization) {
-    if (err)
+    if (err || !organization)
         return false;
 
+    //console.log(organization);
     h[organization] = h[organization].concat(response['data']);
 
     if (github.hasNextPage(response)) {
