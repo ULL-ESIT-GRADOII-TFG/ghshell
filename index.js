@@ -284,6 +284,9 @@ var rep = [];
 function store() {
     for(let i = 0; i < rep.length; i++) {
         commands['repos'][rep[i].name] = {
+            'owner': {
+                'login': rep[i]['owner'].login
+            },
             'clone_url': rep[i].clone_url
         }
     }
@@ -419,6 +422,14 @@ function repositories(secCmd) {
             }
         }
     }
+}
+
+function getOwner() {
+    if (currentRepo) {
+        console.log(commands['repos'][currentRepo]['owner']['login']);
+        rl.write(null, {name: 'enter'});
+    }
+    console.log('');
 }
 
 function evalInput(input) {
@@ -703,6 +714,9 @@ rl.on('line', async (line) => {
         case 'script':
             matches = search(cmd[2]);
             await runScript(cmd[1], cmd[2], matches, false);
+            break;
+        case 'owner':
+            getOwner();
             break;
         case 'exit':
             process.exit(0);
