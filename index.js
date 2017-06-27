@@ -10,6 +10,7 @@ var GitHubApi    = require('github');
 var Promise      = require('bluebird');
 var timestamp    = require('time-stamp');
 var lineByLine   = require('n-readlines');
+var _            = require('underscore');
 
 const fs         = require('fs');
 const files      = require('./lib/files');
@@ -265,7 +266,7 @@ function getOrgsRepos(organization) {
 }
 
 function listOrgRepos(err, response, organization) {
-    if (err)
+    if (err || !organization)
         return false;
 
     h[organization] = h[organization].concat(response['data']);
@@ -410,27 +411,43 @@ function repositories(secCmd) {
                 rl.history = rl.history.slice(1);
             }
             else {
-                console.log("Repository not found".red.bold);
+                let input = evalInput(secCmd);
+                let str = input instanceof RegExp ? input.source : input;
+                console.log(secCmd);
+                console.log(`Repository ${str.underline} not found`.red.bold);
                 console.log('');
             }
         }
     }
 }
 
+function evalInput(input) {
+    let output;
+
+    try {                                   // RegExp
+        output = eval(input);
+        if (output instanceof RegExp)
+            return output;
+        else
+            return input;
+    }
+    catch (err) {                           // String
+        output = input;
+        return output;
+    }
+}
 
 function matching(secCmd, assignment) {
-    let matchOn;
+    let matchOn = evalInput(secCmd);
     let matches = [];
 
-    try {                                   // Regexp
-        matchOn = eval(secCmd);
+    if (matchOn instanceof RegExp) {
         if (currentOrg)                     // We're inside of an organization
             matches = Object.keys(commands['orgs'][currentOrg]).filter(s => matchOn.test(s));
         else
             matches = Object.keys(commands['repos']).filter(s => matchOn.test(s));
     }
-    catch (err) {                           // String
-        matchOn = secCmd;
+    else {
         if (currentOrg) {
             if (assignment)
                 matches = Object.keys(commands['orgs'][currentOrg]).filter(s => s.split('-')[0] === matchOn);
@@ -491,12 +508,20 @@ function setLogFilePath(match, assignment) {
     return logFilePath;
 }
 
-function clone(matches, assignment) {
+function getAssignmentName(repo1, repo2) {
+    if (repo1)
+        if(!repo2)
+            return (repo1.split('-')[0]);
+        else
+            return (_.intersection(repo1.split('-'), repo2.split('-')));
+}
+
+function clone(searchKey, matches, assignment) {
 
     let assignmentName;
 
     if (assignment)
-        assignmentName = matches[0].split('-')[0];
+        assignmentName = getAssignmentName(matches[0], matches[1]);
 
     let logFilePath = setLogFilePath(assignmentName, assignment);
 
@@ -526,6 +551,8 @@ function clone(matches, assignment) {
             });
 
             child.stderr.on('data', (data) => {
+                if (data.slice(-1) !== '\n')
+                    data += '\n';
                 fs.writeFile(`${logFilePath}/${matches[i]}.log`,
                     "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
                     {flag: 'a'}, () => {
@@ -534,8 +561,11 @@ function clone(matches, assignment) {
             });
         }
     }
-    else
-        console.log("Repository not found".red.bold);
+    else {
+        let input = evalInput(searchKey);
+        let str = input instanceof RegExp ? input.source : input;
+        console.log(`Repository ${str.underline} not found`.red.bold);
+    }
     console.log('');
 }
 
@@ -554,19 +584,21 @@ async function assignments(cmds) {
             }
             else {
                 if (cmds[1] === 'clone')
-                    clone(matches, true);
+                    clone(cmds[0], matches, true);
                 if (cmds[1] === 'script') {
-                    await runScript(cmds[2], matches, true);
+                    await runScript(cmds[2], cmds[0], matches, true);
                 }
             }
         }
         else {
-            console.log(`Assignment not found`.red.bold);
+            let input = evalInput(cmds[0]);
+            let str = input instanceof RegExp ? input.source : input;
+            console.log(`Assignment ${str.underline} not found`.red.bold);
             console.log('');
         }
     }
     else {
-        console.log(`Assignment not found`.red.bold);
+        console.log(`Error! Bad syntax`.red.bold);
         console.log('');
     }
 }
@@ -576,35 +608,51 @@ async function pwd() {
     console.log(stdout);
 }
 
-async function runScript(filePath, matches, assignment) {
+async function runScript(filePath, searchKey, matches, assignment) {
 
-    if ((filePath) && (matches.length !== 0)) {
-        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
-        let fullPathFile = (path.isAbsolute(filePath)? filePath : path.join(process.cwd(), filePath));
+    if (filePath) {
+        let fullPathFile = (path.isAbsolute(filePath) ? filePath : path.join(process.cwd(), filePath));
 
-        for (let i = 0; i < matches.length; i++) {
-            if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
-                let dstPathFile = `${logFilePath}/${matches[i]}/${path.basename(fullPathFile)}`;
-                fs.writeFileSync(dstPathFile, fs.readFileSync(fullPathFile));
+        if (files.fileExists(fullPathFile)) {
+            if (matches.length !== 0) {
+                let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
 
-                let liner = new lineByLine(dstPathFile);
-                let line;
-                while (line = liner.next()) {
-                    const {stdout} = await exec(`(cd ${matches[i]}; ${line.toString('ascii')})`);
-                    fs.writeFile(`${logFilePath}/${matches[i]}.log`,
-                        "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
-                        {flag: 'a'}, () => {
+                for (let i = 0; i < matches.length; i++) {
+                    if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
+                        let dstPathFile = `${logFilePath}/${matches[i]}/${path.basename(fullPathFile)}`;
+                        fs.writeFileSync(dstPathFile, fs.readFileSync(fullPathFile));
+
+                        let liner = new lineByLine(dstPathFile);
+                        let line;
+                        while (line = liner.next()) {
+                            const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString('ascii')})`);
+                            fs.writeFile(`${logFilePath}/${matches[i]}.log`,
+                                "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
+                                {flag: 'a'}, () => {
+                                }
+                            );
                         }
-                    );
+                        console.log(`Execution of ${path.basename(fullPathFile).underline} in ${matches[i].underline} has finished`.green.bold);
+                    }
+                    else
+                        console.log(`Repository ${matches[i].underline} not found. Try to clone it first!`.red.bold);
                 }
-                console.log(`Execution of ${path.basename(fullPathFile).underline} in ${matches[i].underline} has finished`.green.bold);
             }
-            else
-                console.log(`Repository ${matches[i].underline} not found. Try to clone it first!`.red.bold);
+            else {
+                if (searchKey) {
+                    let input = evalInput(searchKey);
+                    let str = input instanceof RegExp ? input.source : input;
+                    console.log(`There's not repositories that match with ${str.underline}`.red.bold);
+                }
+                else
+                    console.log("Syntax error! There's not target repos".red.bold);
+            }
         }
+        else
+            console.log(`Error! File ${path.basename(fullPathFile).underline} not found`.red.bold);
     }
     else
-        console.log(`Error! Bad syntax`.red.bold);
+        console.log('Syntax error! No file provided'.red.bold);
     console.log('');
 }
 /****************************************************************/
@@ -634,17 +682,17 @@ rl.on('line', async (line) => {
             logout();
             break;
         case 'orgs':
-            organizations(cmd.slice(1)[0]);
+            organizations(cmd[1]);
             break;
         case 'repos':
-            repositories(cmd.slice(1)[0]);
+            repositories(cmd[1]);
             break;
         case 'back':
             back_to();
             break;
         case 'clone':
-            matches = search(cmd.slice(1)[0]);
-            clone(matches, false);
+            matches = search(cmd[1]);
+            clone(cmd[1], matches, false);
             break;
         case 'assignments':
             await assignments(cmd.slice(1));
@@ -653,8 +701,8 @@ rl.on('line', async (line) => {
             await pwd();
             break;
         case 'script':
-            matches = search(cmd.slice(2)[0]);
-            await runScript(cmd.slice(1)[0], matches, false);
+            matches = search(cmd[2]);
+            await runScript(cmd[1], cmd[2], matches, false);
             break;
         case 'exit':
             process.exit(0);

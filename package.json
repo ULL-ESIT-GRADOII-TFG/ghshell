@@ -37,6 +37,7 @@
     "github": "9.2.0",
     "n-readlines": "0.2.7",
     "time-stamp": "2.0.0",
+    "underscore": "1.8.3",
     "user-settings": "0.1.5"
   },
   "engines": {
