@@ -1,17 +1,17 @@
 #! /usr/bin/env node
 
-var colors       = require('colors');
-var clear        = require('clear');
-var CLI          = require('clui');
-var Spinner      = CLI.Spinner;
-var figlet       = require('figlet');
-var UserSettings = require('user-settings');
-var GitHubApi    = require('github');
-var Promise      = require('bluebird');
-var timestamp    = require('time-stamp');
-var lineByLine   = require('n-readlines');
-var _            = require('underscore');
-var columnify    = require('columnify')
+let colors       = require('colors');
+let clear        = require('clear');
+let CLI          = require('clui');
+let Spinner      = CLI.Spinner;
+let figlet       = require('figlet');
+let UserSettings = require('user-settings');
+let GitHubApi    = require('github');
+let Promise      = require('bluebird');
+let timestamp    = require('time-stamp');
+let lineByLine   = require('n-readlines');
+let _            = require('underscore');
+let columnify    = require('columnify');
 
 const fs         = require('fs');
 const files      = require('./lib/files');
@@ -22,13 +22,13 @@ const { spawn }  = require('child_process');
 const util       = require('util');
 const exec       = util.promisify(require('child_process').exec);
 
-var commands     = require('./lib/commands').commands;
+let commands     = require('./lib/commands').commands;
 
 const promptString = 'ghshell > ';
 
-var prefs = UserSettings.file('.ghshell');
-var homedir = process.env.HOME || process.env.USERPROFILE;
-var seed = (() => {
+let prefs = UserSettings.file('.ghshell');
+let homedir = process.env.HOME || process.env.USERPROFILE;
+let seed = (() => {
     let key = path.join(homedir, '.ssh', 'id_rsa');
     try {
         return fs.readFileSync(key).toString('utf8')    // Use private SSH key as seed
@@ -36,104 +36,104 @@ var seed = (() => {
         return crypto.randomBytes(256).toString('hex'); // or random string
     }
 })();
-var scope = 'main';
-var completions = Object.keys(commands[scope][0]);
-var currentRepo = undefined;
-var currentOrg  = undefined;
+let scope = 'main';
+let completions = Object.keys(commands[scope][0]);
+let currentRepo = undefined;
+let currentOrg  = undefined;
 let matches;
 let helpDefinitions = {
-    'back': {
-        'command'    : 'back',
-        'description': 'return from a repository or organization to the main level'.grey,
-        'usage'      : 'back'.red
+    back: {
+        command    : 'back',
+        description: 'return from a repository or organization to the main level'.grey,
+        usage      : 'back'.red
     },
-    'clone': {
-        'command'    : 'clone',
-        'description': [
+    clone: {
+        command    : 'clone',
+        description: [
             "clone current repository (if we're inside)".grey,
             "clone repositories that match with ".grey + "string|regexp".grey.italic.bold
         ].join('\n'),
-        'usage'      : [
+        usage      : [
             'clone'.red,
             'clone'.red + ' string | /regexp/'
         ].join('\n')
     },
-    'exit': {
-        'command'    : 'exit',
-        'description': 'cause normal ghshell termination'.grey,
-        'usage'      : 'exit'.red
+    exit: {
+        command    : 'exit',
+        description: 'cause normal ghshell termination'.grey,
+        usage      : 'exit'.red
     },
-    'help': {
-        'command'    : 'help',
-        'description': 'display this message'.grey,
-        'usage'      : 'help'.red
+    help: {
+        command    : 'help',
+        description: 'display this message'.grey,
+        usage      : 'help'.red
     },
-    'login': {
-        'command'    : 'login',
-        'description': "sign in a Github's user".grey,
-        'usage'      : 'login'.red
+    login: {
+        command    : 'login',
+        description: "sign in a Github's user".grey,
+        usage      : 'login'.red
     },
-    'logout': {
-        'command'    : 'logout',
-        'description': "sign out a Github's user".grey,
-        'usage'      : 'logout'.red
+    logout: {
+        command    : 'logout',
+        description: "sign out a Github's user".grey,
+        usage      : 'logout'.red
     },
-    'orgs': {
-        'command'    : 'orgs',
-        'description': [
+    orgs: {
+        command    : 'orgs',
+        description: [
             "select a Github user's organizations".grey,
             "list the Github user's organizations".grey
         ].join('\n'),
-        'usage'      : [
+        usage      : [
             'orgs'.red,
             'orgs'.red + ' -l',
         ].join('\n')
     },
-    'owner': {
-        'command'    : 'owner',
-        'description': "get the repo's owner and contributors (if we're inside an Org)".grey,
-        'usage'      : 'owner'.red
+    owner: {
+        command    : 'owner',
+        description: "get the repo's owner and contributors (if we're inside an Org)".grey,
+        usage      : 'owner'.red
     },
-    'pwd': {
-        'command'    : 'pwd',
-        'description': "show the ghshell's current working path".grey,
-        'usage'      : 'pwd'.red
+    pwd: {
+        command    : 'pwd',
+        description: "show the ghshell's current working path".grey,
+        usage      : 'pwd'.red
     },
-    'repos': {
-        'command'    : 'repos',
-        'description': [
+    repos: {
+        command    : 'repos',
+        description: [
             "select a repository".grey,
             "list all the repositories".grey,
             "list the repositories that match with ".grey + "string|regexp".grey.italic.bold
         ].join('\n'),
-        'usage'      : [
+        usage      : [
             'repos'.red,
             'repos'.red + ' -l',
             'repos'.red + ' string | /regexp/'
         ].join('\n')
     },
-    'assignments': {
-        'command'    : 'assignments',
-        'description': [
+    assignments: {
+        command    : 'assignments',
+        description: [
             "list the assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "clone the assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "exec a script on assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "NOTE".grey.underline + ": file's path can be absolute or relative".grey
         ].join('\n'),
-        'usage'      : [
+        usage      : [
             "assignments".red.underline + " string | /regexp/",
             "assignments".red.underline + " string | /regexp/ " + "clone".underline,
             "assignments".red.underline + " string | /regexp/ " + "script".underline + " 'file'"
         ].join('\n')
     },
-    'script': {
-        'command'    : 'script',
-        'description': [
+    script: {
+        command    : 'script',
+        description: [
             "exec a script on current repository (if we're inside)".grey,
             "exec a script on repositories that match with ".grey + "regexp".grey.italic.bold,
             "NOTE".grey.underline + ": file's path can be absolute or relative".grey
         ].join('\n'),
-        'usage'      : [
+        usage      : [
             "script".red.underline + " 'file'",
             "script".red.underline + " 'file' /regexp/"
         ].join('\n')
@@ -322,8 +322,8 @@ function storeOrgs() {
     }
 }
 
-var orgs = [];
-var h = {};
+let orgs = [];
+let h = {};
 function listOrgs(err, obj) {
 
     if (err)
@@ -349,16 +349,16 @@ function getOrgs() {
 function storeOrgRepos(organization) {
     for(let i = 0; i < h[organization].length; i++) {
         commands['orgs'][organization][h[organization][i].name] = {
-            'owner': {
-                'login': h[organization][i]['owner'].login
+            owner: {
+                login: h[organization][i]['owner'].login
             },
-            'clone_url': h[organization][i].clone_url,
-            'contributors': []
-        }
+            clone_url: h[organization][i].clone_url,
+            contributors: []
+        };
 
         github.repos.getContributors({                             // Get contributors
-            'owner': h[organization][i]['owner'].login,
-            'repo': h[organization][i].name
+            owner: h[organization][i]['owner'].login,
+            repo: h[organization][i].name
         }).then((res) => {
             for (let j = 0; j < res['data'].length; j++)
                 commands['orgs'][organization][h[organization][i].name]['contributors'].push(res['data'][j]['login']);
@@ -389,15 +389,15 @@ function listOrgRepos(err, response, organization) {
         storeOrgRepos(organization);
 }
 
-var rep = [];
+let rep = [];
 
 function store() {
     for(let i = 0; i < rep.length; i++) {
         commands['repos'][rep[i].name] = {
-            'owner': {
-                'login': rep[i]['owner'].login
+            owner: {
+                login: rep[i]['owner'].login
             },
-            'clone_url': rep[i].clone_url
+            clone_url: rep[i].clone_url
         }
     }
 }
@@ -659,14 +659,14 @@ function clone(searchKey, matches, assignment) {
 
     if (matches.length > 0) {
         if (currentOrg) {                     // If we're inside of an organization, create a folder for it
-            var child2 = spawn('mkdir', ['-p', currentOrg]);
+            spawn('mkdir', ['-p', currentOrg]);
 
             if (assignment)                   // If we're cloning an assignment, create a folder for it
-                var child3 = spawn('mkdir', ['-p', `${currentOrg}/${assignmentName}`]);
+                spawn('mkdir', ['-p', `${currentOrg}/${assignmentName}`]);
         }
 
         for (let i = 0; i < matches.length; i++) {
-            var child;
+            let child;
 
             if (currentOrg)                 // Clone repos inside the organization folder and assignment folder
                 if (assignment)
@@ -679,7 +679,7 @@ function clone(searchKey, matches, assignment) {
             console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}.log`.blue.underline + " for more information)".blue);
 
             child.on('error', (err) => {
-                console.log('Failed to start child process.');
+                console.log(`Failed to start child process: ${err}`);
             });
 
             child.stderr.on('data', (data) => {
@@ -761,7 +761,7 @@ async function runScript(filePath, searchKey, matches, assignment) {
                         let liner = new lineByLine(dstPathFile);
                         let line;
                         while (line = liner.next()) {
-                            const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString('ascii')})`);
+                            const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()})`);
                             fs.writeFile(`${logFilePath}/${matches[i]}.log`,
                                 "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
                                 {flag: 'a'}, () => {
@@ -810,7 +810,7 @@ function showHelp() {
         minWidth: 13,
         preserveNewLines: true,
         config: {
-            description: {minWidth: 63}
+            description: {minWidth: 60}
         }
     });
 
@@ -820,9 +820,7 @@ function showHelp() {
 
 /****************************************************************/
 clear();
-console.log(
-    figlet.textSync('ghshell', { horizontalLayout: 'full'}).yellow
-);
+console.log(figlet.textSync('ghshell', { horizontalLayout: 'default'}).yellow);
 console.log('');
 console.log('');
 login();
@@ -831,7 +829,7 @@ rl.prompt();
 
 
 rl.on('line', async (line) => {
-    var cmd = line.trim().split(' ');
+    let cmd = line.trim().split(' ');
 
     switch(cmd[0]) {
         case 'help':
