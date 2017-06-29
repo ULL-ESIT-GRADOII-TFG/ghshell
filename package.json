@@ -1,8 +1,7 @@
 {
   "name": "ghshell",
   "version": "1.0.0",
-  "description": "Automatic corrections and executions of GitHub's repositories",
-  "main": "index.js",
+  "description": "CLI tool for automatic corrections and executions of GitHub's repositories",
   "scripts": {
     "test": "mocha"
   },
@@ -12,11 +11,12 @@
   },
   "keywords": [
     "shell",
+    "terminal",
     "github",
     "console",
     "cli",
     "evaluation",
-    "correction"
+    "git"
   ],
   "author": "Juan José Labrador González <jjlabradorglez@gmail.com>",
   "license": "MIT",
@@ -28,7 +28,23 @@
     "chai": "3.5.0",
     "mocha": "3.2.0"
   },
+  "dependencies": {
+    "bluebird": "3.5.0",
+    "clear": "0.0.1",
+    "clui": "0.3.1",
+    "colors": "1.1.2",
+    "columnify": "1.5.4",
+    "figlet": "1.2.0",
+    "github": "9.2.0",
+    "n-readlines": "0.2.7",
+    "time-stamp": "2.0.0",
+    "underscore": "1.8.3",
+    "user-settings": "0.1.5"
+  },
   "engines": {
-    "node": "6.10.1"
+    "node": "8.1.2"
+  },
+  "bin": {
+    "ghshell": "index.js"
   }
 }
