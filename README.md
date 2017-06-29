@@ -27,7 +27,7 @@ $ npm install -g ghshell
 For more information, visit the [official documentation](https://github.com/GitbookIO/gitbook/blob/master/docs/setup.md).
 
 
-* [Calibre application](Calibre application):
+* [Calibre application](https://calibre-ebook.com/download):
 
 ```
 $ sudo aptitude install calibre
