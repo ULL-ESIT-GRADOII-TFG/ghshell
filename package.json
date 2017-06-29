@@ -1,7 +1,7 @@
 {
   "name": "ghshell",
   "version": "1.0.0",
-  "description": "CLI tool for automatic corrections and executions of GitHub's repositories",
+  "description": "CLI tool for automatic clone and corrections of GitHub's repositories",
   "scripts": {
     "test": "mocha"
   },
