@@ -42,7 +42,8 @@
     "user-settings": "0.1.5"
   },
   "engines": {
-    "node": "8.1.2"
+    "node": ">=8.0.0",
+    "npm": ">=5.0.3"
   },
   "bin": {
     "ghshell": "index.js"

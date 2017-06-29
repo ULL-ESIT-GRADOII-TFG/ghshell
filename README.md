@@ -3,6 +3,11 @@
 > CLI tool for automatic clone and corrections of GitHub's repositories
 
 
+## Requirements
+
+Node version >= 8.0.0
+
+
 ## Install
 
 ```
