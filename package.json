@@ -16,7 +16,7 @@
     "console",
     "cli",
     "evaluation",
-    "correction"
+    "git"
   ],
   "author": "Juan José Labrador González <jjlabradorglez@gmail.com>",
   "license": "MIT",
