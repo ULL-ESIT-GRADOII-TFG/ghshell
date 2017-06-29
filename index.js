@@ -117,12 +117,14 @@ let helpDefinitions = {
         description: [
             "list the assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "clone the assignments that match with ".grey + "string|regexp".grey.italic.bold,
+            "create a Gitbook for the assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "exec a script on assignments that match with ".grey + "string|regexp".grey.italic.bold,
             "NOTE".grey.underline + ": file's path can be absolute or relative".grey
         ].join('\n'),
         usage      : [
             "assignments".red.underline + " string | /regexp/",
             "assignments".red.underline + " string | /regexp/ " + "clone".underline,
+            "assignments".red.underline + " string | /regexp/ " + "book".underline,
             "assignments".red.underline + " string | /regexp/ " + "script".underline + " 'file'"
         ].join('\n')
     },
@@ -136,6 +138,17 @@ let helpDefinitions = {
         usage      : [
             "script".red.underline + " 'file'",
             "script".red.underline + " 'file' /regexp/"
+        ].join('\n')
+    },
+    book: {
+        command    : 'book',
+        description: [
+            "create a Gitbook for the current repository (if we're inside)".grey,
+            "create a Gitbook for the repositories that match with ".grey + "string|regexp".grey.italic.bold
+        ].join('\n'),
+        usage      : [
+            'book'.red,
+            'book'.red + ' string | /regexp/'
         ].join('\n')
     }
 };
@@ -225,7 +238,7 @@ function getGithubToken(callback) {
                 return callback(null, res.data.token);
             }
             return callback();
-        });
+        }).then();
     });
 }
 
@@ -676,7 +689,7 @@ function clone(searchKey, matches, assignment) {
             else                            // Clone simply repos
                 child = spawn('git', ['clone', '--progress', commands['repos'][matches[i]].clone_url]);
 
-            console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}.log`.blue.underline + " for more information)".blue);
+            console.log(`Cloning ${matches[i]}...`.yellow.bold + " (see ".blue + `${matches[i]}-clone.log`.blue.underline + " for more information)".blue);
 
             child.on('error', (err) => {
                 console.log(`Failed to start child process: ${err}`);
@@ -685,7 +698,7 @@ function clone(searchKey, matches, assignment) {
             child.stderr.on('data', (data) => {
                 if (data.slice(-1) !== '\n')
                     data += '\n';
-                fs.writeFile(`${logFilePath}/${matches[i]}.log`,
+                fs.writeFile(`${logFilePath}/${matches[i]}-clone.log`,
                     "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
                     {flag: 'a'}, () => {
                     }
@@ -721,9 +734,10 @@ async function assignments(cmds) {
             else {
                 if (cmds[1] === 'clone')
                     clone(cmds[0], matches, true);
-                if (cmds[1] === 'script') {
+                if (cmds[1] === 'script')
                     await runScript(cmds[2], cmds[0], matches, true);
-                }
+                if (cmds[1] === 'book')
+                    book(cmds[0], matches, true, undefined);
             }
         }
         else {
@@ -762,7 +776,7 @@ async function runScript(filePath, searchKey, matches, assignment) {
                         let line;
                         while (line = liner.next()) {
                             const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()})`);
-                            fs.writeFile(`${logFilePath}/${matches[i]}.log`,
+                            fs.writeFile(`${logFilePath}/${matches[i]}-${path.basename(fullPathFile)}.log`,
                                 "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
                                 {flag: 'a'}, () => {
                                 }
@@ -818,6 +832,84 @@ function showHelp() {
     console.log('');
 }
 
+async function createBook(filePath, match) {
+    await exec(`mkdir -p ${filePath}/${match}_gitbook`);
+    await exec(`gitbook init ${filePath}/${match}_gitbook`);
+    await exec(`ls ${filePath} | grep ${match} | grep .log`).then((ls) => {
+        let res = ls['stdout'].split('\n');
+        res.splice(-1, 1);
+
+        for (let i = 0; i < res.length; i++) {
+            let nameFile = res[i].substring(0, res[i].length - 4);
+            let title = nameFile.split('-').pop();
+            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`# ${title}\n\n`);
+            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`, fs.readFileSync(`${filePath}/${match}-${title}.log`), {flag: 'a'});
+            fs.writeFileSync(`${filePath}/${match}_gitbook/SUMMARY.md`,`* [${title}](${nameFile}.md)\n`, {flag: 'a'});
+        }
+    });
+}
+
+async function buildBook(filePath, match) {
+    let childBook = await spawn('gitbook', ['build', `${filePath}/${match}_gitbook`]);
+    await childBook.stdout.on('data', (data) => {
+        fs.writeFile(`${filePath}/${match}-gitbook_build.out`,
+            "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
+            {flag: 'a'}, () => {
+            }
+        );
+    });
+}
+
+function bookToPdf(filePath, match) {
+    let childBookPDF = spawn('gitbook', ['pdf', `${filePath}/${match}_gitbook`, `${filePath}/${match}.pdf`]);
+    childBookPDF.stdout.on('data', (data) => {
+        fs.writeFile(`${filePath}/${match}-gitbook_pdf.out`,
+            "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + data,
+            {flag: 'a'}, () => {
+            }
+        );
+    });
+}
+
+
+function book(searchKey, matches, assignment) {
+
+    let assignmentName;
+
+    if (assignment)
+        assignmentName = getAssignmentName(matches[0], matches[1]);
+
+    let logFilePath = setLogFilePath(assignmentName, assignment);
+
+    if (matches.length > 0) {
+        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+
+        for (let i = 0; i < matches.length; i++) {
+            if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
+                createBook(logFilePath, matches[i]).then(() => {
+                    buildBook(logFilePath, matches[i]).then(() => {
+                        bookToPdf(logFilePath, matches[i]);
+                    });
+                });
+                console.log(`Book ${matches[i].underline} created successfully!`.green.bold);
+                console.log(`Book ${matches[i].underline} exported to PDF successfully!`.green.bold);
+            }
+            else
+                console.log(`Repository ${matches[i].underline} not found. Try to clone it first!`.red.bold);
+        }
+    }
+    else {
+        if (searchKey) {
+            let input = evalInput(searchKey);
+            let str = input instanceof RegExp ? input.source : input;
+            console.log(`There's not repositories that match with ${str.underline} for create a book`.red.bold);
+        }
+        else
+            console.log(`Error! Bad syntax`.red.bold);
+    }
+    console.log('');
+}
+
 /****************************************************************/
 clear();
 console.log(figlet.textSync('ghshell', { horizontalLayout: 'default'}).yellow);
@@ -866,6 +958,10 @@ rl.on('line', async (line) => {
             break;
         case 'owner':
             getOwner();
+            break;
+        case 'book':
+            matches = search(cmd[1]);
+            book(cmd[1], matches, false);
             break;
         case 'exit':
             process.exit(0);
