@@ -846,7 +846,15 @@ async function createBook(filePath, match) {
             let nameFile = res[i].substring(0, res[i].length - 4);
             let title = nameFile.split('-').pop();
             fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`# ${title}\n\n`);
-            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`, fs.readFileSync(`${filePath}/${match}-${title}.log`), {flag: 'a'});
+            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`\`\`\`bash\n`, {flag: 'a'});
+
+            let liner = new lineByLine(`${filePath}/${match}-${title}.log`);
+            let line;
+            while (line = liner.next()) {
+                fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`${line.toString()}\n\n`, {flag: 'a'});
+            }
+            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`\`\`\`\n\n`, {flag: 'a'});
+
             fs.writeFileSync(`${filePath}/${match}_gitbook/SUMMARY.md`,`* [${title}](${nameFile}.md)\n`, {flag: 'a'});
         }
     });
@@ -874,7 +882,6 @@ function bookToPdf(filePath, match) {
     });
 }
 
-
 function book(searchKey, matches, assignment) {
 
     let assignmentName;
@@ -885,7 +892,7 @@ function book(searchKey, matches, assignment) {
     let logFilePath = setLogFilePath(assignmentName, assignment);
 
     if (matches.length > 0) {
-        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+        let logFilePath = setLogFilePath(assignmentName, assignment);
 
         for (let i = 0; i < matches.length; i++) {
             if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
