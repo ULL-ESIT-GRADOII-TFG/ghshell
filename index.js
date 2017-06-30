@@ -656,9 +656,10 @@ function setLogFilePath(match, assignment) {
 function getAssignmentName(repo1, repo2) {
     if (repo1)
         if(!repo2)
-            return (repo1.split('-')[0]);
+            // I guess that the assignment name is all the string splitted by '-' minus the last subtring
+            return (repo1.split('-').slice(0, -1));
         else
-            return (_.intersection(repo1.split('-'), repo2.split('-')));
+            return ((_.intersection(repo1.split('-'), repo2.split('-'))).join('-'));
 }
 
 function clone(searchKey, matches, assignment) {
@@ -765,7 +766,11 @@ async function runScript(filePath, searchKey, matches, assignment) {
 
         if (files.fileExists(fullPathFile)) {
             if (matches.length !== 0) {
-                let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+                let assignmentName;
+                if (assignment)
+                    assignmentName = getAssignmentName(matches[0], matches[1]);
+
+                let logFilePath = setLogFilePath(assignmentName, assignment);
 
                 for (let i = 0; i < matches.length; i++) {
                     if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
