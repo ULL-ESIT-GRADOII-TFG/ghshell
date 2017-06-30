@@ -809,10 +809,10 @@ async function runScript(filePath, searchKey, matches, assignment) {
 function showHelp() {
     let help;
 
-    if (currentOrg)                                     // Organization help scope
-        help = commands[scope][0]['orgs'].sort();
-    else if (currentRepo)                               // Repository help scope
+    if (currentRepo)                                     // Organization help scope
         help = commands[scope][0]['repos'].sort();
+    else if (currentOrg)                               // Repository help scope
+        help = commands[scope][0]['orgs'].sort();
     else                                                // Main help scope
         help = Object.keys(commands[scope][0]).sort();
 
