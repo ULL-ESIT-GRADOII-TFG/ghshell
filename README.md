@@ -1,4 +1,4 @@
-# ghshell [![Build Status](https://travis-ci.org/ULL-ESIT-GRADOII-TFG/TFM-SyTWA.svg?branch=master)](https://travis-ci.org/ULL-ESIT-GRADOII-TFG/TFM-SyTWA)
+# ghshell [![Build Status](https://travis-ci.org/ULL-ESIT-GRADOII-TFG/ghshell.svg?branch=master)](https://travis-ci.org/ULL-ESIT-GRADOII-TFG/ghshell)
 
 > CLI tool for automatic clone and corrections of GitHub's repositories
 
