@@ -238,7 +238,7 @@ function getGithubToken(callback) {
                 return callback(null, res.data.token);
             }
             return callback();
-        }).then();
+        });
     });
 }
 
