@@ -780,12 +780,10 @@ async function runScript(filePath, searchKey, matches, assignment) {
                         let liner = new lineByLine(dstPathFile);
                         let line;
                         while (line = liner.next()) {
-                            const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()})`);
-                            fs.writeFile(`${logFilePath}/${matches[i]}-${path.basename(fullPathFile)}.log`,
-                                "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
-                                {flag: 'a'}, () => {
-                                }
-                            );
+                            try {
+                                await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()}) >> ${logFilePath}/${matches[i]}-${path.basename(fullPathFile)}.log 2>&1`);
+                            }
+                            catch (err) {}
                         }
                         console.log(`Execution of ${path.basename(fullPathFile).underline} in ${matches[i].underline} has finished`.green.bold);
                     }
