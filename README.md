@@ -21,7 +21,7 @@ To use Gitbook creation function, it's necessary the following dependencies:
 * [Gitbook](https://www.gitbook.com) package: 
 
 ```
-$ npm install -g ghshell
+$ npm install -g gitbook-cli
 ``` 
 
 For more information, visit the [official documentation](https://github.com/GitbookIO/gitbook/blob/master/docs/setup.md).
