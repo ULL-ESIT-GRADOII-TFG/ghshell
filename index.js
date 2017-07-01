@@ -223,7 +223,7 @@ function getGithubToken(callback) {
 
         github.authorization.create({
             scopes: ['public_repo', 'read:org', 'read:user'],
-            note: 'ghshell, the CLI tool for automatic corrections and executions of GitHub\'s repositories'
+            note: 'ghshell, the CLI tool for automatic clone and corrections of GitHub\'s repositories'
         }, (err, res) => {
             status.stop();
             if (err) {
