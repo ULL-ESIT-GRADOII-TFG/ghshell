@@ -846,7 +846,7 @@ async function createBook(filePath, match) {
             let nameFile = res[i].substring(0, res[i].length - 4);
             let title = nameFile.split('-').pop();
             fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`# ${title}\n\n`);
-            //fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`, fs.readFileSync(`${filePath}/${match}-${title}.log`), {flag: 'a'});
+            
             let liner = new lineByLine(`${filePath}/${match}-${title}.log`)
             let line;
             while (line = liner.next()) {
