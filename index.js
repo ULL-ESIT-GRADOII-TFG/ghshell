@@ -885,7 +885,7 @@ function book(searchKey, matches, assignment) {
     let logFilePath = setLogFilePath(assignmentName, assignment);
 
     if (matches.length > 0) {
-        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+        let logFilePath = setLogFilePath(assignmentName, assignment);
 
         for (let i = 0; i < matches.length; i++) {
             if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
