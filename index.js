@@ -238,7 +238,7 @@ function getGithubToken(callback) {
                 return callback(null, res.data.token);
             }
             return callback();
-        }).then();
+        });
     });
 }
 
@@ -656,9 +656,10 @@ function setLogFilePath(match, assignment) {
 function getAssignmentName(repo1, repo2) {
     if (repo1)
         if(!repo2)
-            return (repo1.split('-')[0]);
+            // I guess that the assignment name is all the string splitted by '-' minus the last subtring
+            return (repo1.split('-').slice(0, -1));
         else
-            return (_.intersection(repo1.split('-'), repo2.split('-')));
+            return ((_.intersection(repo1.split('-'), repo2.split('-'))).join('-'));
 }
 
 function clone(searchKey, matches, assignment) {
@@ -765,7 +766,11 @@ async function runScript(filePath, searchKey, matches, assignment) {
 
         if (files.fileExists(fullPathFile)) {
             if (matches.length !== 0) {
-                let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+                let assignmentName;
+                if (assignment)
+                    assignmentName = getAssignmentName(matches[0], matches[1]);
+
+                let logFilePath = setLogFilePath(assignmentName, assignment);
 
                 for (let i = 0; i < matches.length; i++) {
                     if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
@@ -775,12 +780,10 @@ async function runScript(filePath, searchKey, matches, assignment) {
                         let liner = new lineByLine(dstPathFile);
                         let line;
                         while (line = liner.next()) {
-                            const {stdout} = await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()})`);
-                            fs.writeFile(`${logFilePath}/${matches[i]}-${path.basename(fullPathFile)}.log`,
-                                "[" + timestamp('YYYY/MM/DD-HH:mm:ss') + "] " + stdout + "\n",
-                                {flag: 'a'}, () => {
-                                }
-                            );
+                            try {
+                                await exec(`(cd ${logFilePath}/${matches[i]}; ${line.toString()}) >> ${logFilePath}/${matches[i]}-${path.basename(fullPathFile)}.log 2>&1`);
+                            }
+                            catch (err) {}
                         }
                         console.log(`Execution of ${path.basename(fullPathFile).underline} in ${matches[i].underline} has finished`.green.bold);
                     }
@@ -809,10 +812,10 @@ async function runScript(filePath, searchKey, matches, assignment) {
 function showHelp() {
     let help;
 
-    if (currentOrg)                                     // Organization help scope
-        help = commands[scope][0]['orgs'].sort();
-    else if (currentRepo)                               // Repository help scope
+    if (currentRepo)                                     // Organization help scope
         help = commands[scope][0]['repos'].sort();
+    else if (currentOrg)                               // Repository help scope
+        help = commands[scope][0]['orgs'].sort();
     else                                                // Main help scope
         help = Object.keys(commands[scope][0]).sort();
 
@@ -843,10 +846,20 @@ async function createBook(filePath, match) {
             let nameFile = res[i].substring(0, res[i].length - 4);
             let title = nameFile.split('-').pop();
             fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`# ${title}\n\n`);
-            fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`, fs.readFileSync(`${filePath}/${match}-${title}.log`), {flag: 'a'});
+
+            let liner = new lineByLine(`${filePath}/${match}-${title}.log`)
+            let line;
+            while (line = liner.next()) {
+                fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`${line.toString()}\n\n`, {flag: 'a'});
+            }
+
             fs.writeFileSync(`${filePath}/${match}_gitbook/SUMMARY.md`,`* [${title}](${nameFile}.md)\n`, {flag: 'a'});
         }
     });
+    if(files.fileExists(`${filePath}/${match}/README.md`))
+        await exec(`cp ${filePath}/${match}/README.md ${filePath}/${match}_gitbook`);
+    else
+        await fs.writeFileSync(`${filePath}/${match}_gitbook/README.md`,`Repository ${match} without README.md\n`, {flag: 'a'});
 }
 
 async function buildBook(filePath, match) {
@@ -882,7 +895,7 @@ function book(searchKey, matches, assignment) {
     let logFilePath = setLogFilePath(assignmentName, assignment);
 
     if (matches.length > 0) {
-        let logFilePath = setLogFilePath(matches[0].split('-')[0], assignment);
+        let logFilePath = setLogFilePath(assignmentName, assignment);
 
         for (let i = 0; i < matches.length; i++) {
             if (files.directoryExists(`${logFilePath}/${matches[i]}`)) {
