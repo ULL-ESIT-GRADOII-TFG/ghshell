@@ -14,144 +14,23 @@ let _            = require('underscore');
 let columnify    = require('columnify');
 
 const fs         = require('fs');
-const files      = require('./lib/files');
 const readline   = require('readline');
-const crypto     = require('crypto');
 const path       = require('path');
 const { spawn }  = require('child_process');
 const util       = require('util');
 const exec       = util.promisify(require('child_process').exec);
 
-let commands     = require('./lib/commands').commands;
+const files             = require('./lib/files');
+const utils             = require('./lib/utils');
+let commands            = require('./lib/commands').commands;
+let helpDefinitions     = require('./lib/help').helpDefinitions;
 
-const promptString = 'ghshell > ';
 
 let prefs = UserSettings.file('.ghshell');
-let homedir = process.env.HOME || process.env.USERPROFILE;
-let seed = (() => {
-    let key = path.join(homedir, '.ssh', 'id_rsa');
-    try {
-        return fs.readFileSync(key).toString('utf8')    // Use private SSH key as seed
-    } catch (e) {
-        return crypto.randomBytes(256).toString('hex'); // or random string
-    }
-})();
+const promptString = 'ghshell > ';
 let scope = 'main';
 let completions = Object.keys(commands[scope][0]);
-let currentRepo = undefined;
-let currentOrg  = undefined;
-let matches;
-let helpDefinitions = {
-    back: {
-        command    : 'back',
-        description: 'return from a repository or organization to the main level'.grey,
-        usage      : 'back'.red
-    },
-    clone: {
-        command    : 'clone',
-        description: [
-            "clone current repository (if we're inside)".grey,
-            "clone repositories that match with ".grey + "string|regexp".grey.italic.bold
-        ].join('\n'),
-        usage      : [
-            'clone'.red,
-            'clone'.red + ' string | /regexp/'
-        ].join('\n')
-    },
-    exit: {
-        command    : 'exit',
-        description: 'cause normal ghshell termination'.grey,
-        usage      : 'exit'.red
-    },
-    help: {
-        command    : 'help',
-        description: 'display this message'.grey,
-        usage      : 'help'.red
-    },
-    login: {
-        command    : 'login',
-        description: "sign in a Github's user".grey,
-        usage      : 'login'.red
-    },
-    logout: {
-        command    : 'logout',
-        description: "sign out a Github's user".grey,
-        usage      : 'logout'.red
-    },
-    orgs: {
-        command    : 'orgs',
-        description: [
-            "select a Github user's organizations".grey,
-            "list the Github user's organizations".grey
-        ].join('\n'),
-        usage      : [
-            'orgs'.red,
-            'orgs'.red + ' -l',
-        ].join('\n')
-    },
-    owner: {
-        command    : 'owner',
-        description: "get the repo's owner and contributors (if we're inside an Org)".grey,
-        usage      : 'owner'.red
-    },
-    pwd: {
-        command    : 'pwd',
-        description: "show the ghshell's current working path".grey,
-        usage      : 'pwd'.red
-    },
-    repos: {
-        command    : 'repos',
-        description: [
-            "select a repository".grey,
-            "list all the repositories".grey,
-            "list the repositories that match with ".grey + "string|regexp".grey.italic.bold
-        ].join('\n'),
-        usage      : [
-            'repos'.red,
-            'repos'.red + ' -l',
-            'repos'.red + ' string | /regexp/'
-        ].join('\n')
-    },
-    assignments: {
-        command    : 'assignments',
-        description: [
-            "list the assignments that match with ".grey + "string|regexp".grey.italic.bold,
-            "clone the assignments that match with ".grey + "string|regexp".grey.italic.bold,
-            "create a Gitbook for the assignments that match with ".grey + "string|regexp".grey.italic.bold,
-            "exec a script on assignments that match with ".grey + "string|regexp".grey.italic.bold,
-            "NOTE".grey.underline + ": file's path can be absolute or relative".grey
-        ].join('\n'),
-        usage      : [
-            "assignments".red.underline + " string | /regexp/",
-            "assignments".red.underline + " string | /regexp/ " + "clone".underline,
-            "assignments".red.underline + " string | /regexp/ " + "book".underline,
-            "assignments".red.underline + " string | /regexp/ " + "script".underline + " 'file'"
-        ].join('\n')
-    },
-    script: {
-        command    : 'script',
-        description: [
-            "exec a script on current repository (if we're inside)".grey,
-            "exec a script on repositories that match with ".grey + "regexp".grey.italic.bold,
-            "NOTE".grey.underline + ": file's path can be absolute or relative".grey
-        ].join('\n'),
-        usage      : [
-            "script".red.underline + " 'file'",
-            "script".red.underline + " 'file' /regexp/"
-        ].join('\n')
-    },
-    book: {
-        command    : 'book',
-        description: [
-            "create a Gitbook for the current repository (if we're inside)".grey,
-            "create a Gitbook for the repositories that match with ".grey + "string|regexp".grey.italic.bold
-        ].join('\n'),
-        usage      : [
-            'book'.red,
-            'book'.red + ' string | /regexp/'
-        ].join('\n')
-    }
-};
+let currentRepo, currentOrg, matches;
 
 const github = new GitHubApi({
     debug: false,
@@ -177,7 +56,7 @@ function hiddenPassword(query, callback) {
         char = char + "";
         switch (char) {
             case "\n": case "\r": case "\u0004":
-                stdin.removeListener("data",onDataHandler);   // Remove this handler
+                stdin.removeListener("data", onDataHandler);   // Remove this handler
                 break;
             default:
                 process.stdout.write("\033[2K\033[200D" + query + Array(rl.line.length + 1).join("*"));
@@ -206,7 +85,7 @@ function getGithubCredentials(callback) {
 function getGithubToken(callback) {
 
     if (prefs.get('token')) {
-        return callback(null, JSON.parse(decode(prefs.get('token'))));
+        return callback(null, JSON.parse(utils.decode(prefs.get('token'))));
     }
 
     // Fetch token
@@ -230,11 +109,11 @@ function getGithubToken(callback) {
                 return callback(err);
             }
             if (res.data.token) {
-                prefs.set('token',     encode(String(JSON.stringify(res.data.token))));
-                prefs.set('id',        encode(String(JSON.stringify(res.data.id))));
-                prefs.set('client_id', encode(String(JSON.stringify(res.data.app.client_id))));
-                prefs.set('username',  encode(credentials.username));
-                prefs.set('password',  encode(credentials.password));
+                prefs.set('token',     utils.encode(String(JSON.stringify(res.data.token))));
+                prefs.set('id',        utils.encode(String(JSON.stringify(res.data.id))));
+                prefs.set('client_id', utils.encode(String(JSON.stringify(res.data.app.client_id))));
+                prefs.set('username',  utils.encode(credentials.username));
+                prefs.set('password',  utils.encode(credentials.password));
                 return callback(null, res.data.token);
             }
             return callback();
@@ -250,8 +129,8 @@ function githubAuth(callback) {
         }
         github.authenticate({
             type     : 'basic',
-            username : decode(prefs.get('username')),
-            password : decode(prefs.get('password'))
+            username : utils.decode(prefs.get('username')),
+            password : utils.decode(prefs.get('password'))
         });
         return callback(null, token);
     });
@@ -297,21 +176,13 @@ function logout() {
     console.log('');
 
     github.authorization.delete({
-        id: JSON.parse(decode(prefs.get('id')))
+        id: JSON.parse(utils.decode(prefs.get('id')))
     }).then(() => {
         clearCredentials();
     });
 }
 
-function encode (text) {
-    let cipher = crypto.createCipher('aes128', seed);
-    return cipher.update(new Buffer(text).toString('utf8'), 'utf8', 'hex') + cipher.final('hex')
-}
 
-function decode (text) {
-    let decipher = crypto.createDecipher('aes128', seed);
-    return decipher.update(String(text), 'hex', 'utf8') + decipher.final('utf8')
-}
 
 function completer(line) {
     let cmds = line.split(' ');
@@ -847,7 +718,7 @@ async function createBook(filePath, match) {
             let title = nameFile.split('-').pop();
             fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`# ${title}\n\n`);
 
-            let liner = new lineByLine(`${filePath}/${match}-${title}.log`)
+            let liner = new lineByLine(`${filePath}/${match}-${title}.log`);
             let line;
             while (line = liner.next()) {
                 fs.writeFileSync(`${filePath}/${match}_gitbook/${nameFile}.md`,`${line.toString()}\n\n`, {flag: 'a'});

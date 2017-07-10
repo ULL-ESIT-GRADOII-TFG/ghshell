@@ -1,13 +1,13 @@
 {
   "name": "ghshell",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CLI tool for automatic clone and corrections of GitHub's repositories",
   "scripts": {
     "test": "mocha"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA.git"
+    "url": "git+https://github.com/ULL-ESIT-GRADOII-TFG/ghshell.git"
   },
   "keywords": [
     "shell",
@@ -16,14 +16,15 @@
     "console",
     "cli",
     "evaluation",
-    "git"
+    "git",
+    "correction"
   ],
   "author": "Juan José Labrador González <jjlabradorglez@gmail.com>",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA/issues"
+    "url": "https://github.com/ULL-ESIT-GRADOII-TFG/ghshell/issues"
   },
-  "homepage": "https://github.com/ULL-ESIT-GRADOII-TFG/TFM-SyTWA#readme",
+  "homepage": "https://github.com/ULL-ESIT-GRADOII-TFG/ghshell#readme",
   "devDependencies": {
     "chai": "3.5.0",
     "mocha": "3.2.0"
