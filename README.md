@@ -51,6 +51,10 @@ List all available commands using command ``help`` inside the application:
 > help
 ```
 
+## See Also
+
+
+* [The Master Degree Thesis (14th of July 2017, Spanish)](https://github.com/ULL-ESIT-GRADOII-TFG/ghshell/blob/master/docs/memoria-ghshell.pdf)
 
 
 ***
