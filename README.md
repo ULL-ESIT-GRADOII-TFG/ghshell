@@ -54,7 +54,7 @@ List all available commands using command ``help`` inside the application:
 ## See Also
 
 
-* [The Master Degree Thesis (14th of July 2017, Spanish)](https://github.com/ULL-ESIT-GRADOII-TFG/ghshell/blob/master/docs/memoria-ghshell.pdf)
+* [Juan Jose Labrador Master Degree Thesis (14th of July 2017, Spanish)](https://github.com/ULL-ESIT-GRADOII-TFG/ghshell/blob/master/docs/memoria-ghshell.pdf): *Shell para corrección automática de repositorios de GitHub* 
 
 
 ***
